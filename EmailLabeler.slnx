@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EmailLabeler/EmailLabeler.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EmailLabeler.Integration.Tests/EmailLabeler.Integration.Tests.csproj" />
+    <Project Path="tests/EmailLabeler.Unit.Tests/EmailLabeler.Unit.Tests.csproj" />
+  </Folder>
+</Solution>

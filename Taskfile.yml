@@ -1,0 +1,57 @@
+version: "3"
+
+tasks:
+  build:
+    desc: Build the Email Labler project
+    cmds:
+      - dotnet build EmailLabeler.slnx
+
+  test:unit:
+    desc: Run unit tests only
+    cmds:
+      - dotnet test tests/EmailLabeler.Unit.Tests
+
+  test:integration:
+    desc: Run integration tests (Testcontainers)
+    cmds:
+      - dotnet test tests/EmailLabeler.Integration.Tests
+
+  test:all:
+    desc: Run all tests
+    cmds:
+      - dotnet test EmailLabeler.slnx
+
+  run:
+    desc: Start the app locally via dotnet run
+    cmds:
+      - dotnet run --project src/EmailLabeler
+
+  docker:build:
+    desc: Build the Docker image
+    cmds:
+      - docker compose build
+
+  docker:up:
+    desc: Start app + nginx via Docker Compose
+    cmds:
+      - docker compose up -d --build
+
+  docker:down:
+    desc: Stop all containers
+    cmds:
+      - docker compose down
+
+  ngrok:
+    desc: Start ngrok tunnel, print public URL
+    cmds:
+      - echo "not yet implemented"
+
+  dev:
+    desc: Start full local dev environment (docker + ngrok)
+    cmds:
+      - echo "not yet implemented"
+
+  setup:gmail:
+    desc: Print instructions for Gmail Pub/Sub + OAuth setup
+    cmds:
+      - echo "not yet implemented"

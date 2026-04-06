@@ -1,0 +1,6 @@
+rules:
+  - match:
+      from: "@example.com"
+    actions:
+      - type: label
+        label: "Example"
