@@ -16,6 +16,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     public required string WireMockBaseUrl { get; init; }
     public string VerificationToken { get; init; } = "test-token";
+    public Dictionary<string, string?> ExtraConfig { get; init; } = new();
 
     private static readonly string RepoRoot = FindRepoRoot();
 
@@ -24,13 +25,16 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting(WebHostDefaults.ContentRootKey, RepoRoot);
         builder.ConfigureAppConfiguration((_, config) =>
         {
-            config.AddInMemoryCollection(new Dictionary<string, string?>
+            var settings = new Dictionary<string, string?>
             {
                 ["rules:0:match:from"] = "@newsletter.com",
                 ["rules:0:actions:0:type"] = "label",
                 ["rules:0:actions:0:label"] = "Newsletters",
                 ["PUBSUB_VERIFICATION_TOKEN"] = VerificationToken,
-            });
+            };
+            foreach (var kvp in ExtraConfig)
+                settings[kvp.Key] = kvp.Value;
+            config.AddInMemoryCollection(settings);
         });
 
         builder.ConfigureServices(services =>

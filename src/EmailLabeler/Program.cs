@@ -2,6 +2,7 @@ using EmailLabeler.Actions;
 using EmailLabeler.Configuration;
 using EmailLabeler.Engine;
 using EmailLabeler.Ports;
+using EmailLabeler.Services;
 using EmailLabeler.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,7 @@ builder.Services.AddSingleton<IEmailAction, ArchiveAction>();
 builder.Services.AddScoped<EmailProcessor>();
 
 builder.Services.AddGmailIntegration();
+builder.Services.AddHostedService<WatchRenewalService>();
 
 var app = builder.Build();
 
