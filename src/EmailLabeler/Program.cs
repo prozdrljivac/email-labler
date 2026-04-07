@@ -1,9 +1,16 @@
+using EmailLabeler.Actions;
 using EmailLabeler.Configuration;
+using EmailLabeler.Engine;
+using EmailLabeler.Ports;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddYamlFile("config.yaml", optional: false, reloadOnChange: true);
 builder.Services.AddRulesConfig(builder.Configuration);
+
+builder.Services.AddSingleton<IEmailAction, LabelAction>();
+builder.Services.AddSingleton<IEmailAction, ArchiveAction>();
+builder.Services.AddScoped<EmailProcessor>();
 
 var app = builder.Build();
 
