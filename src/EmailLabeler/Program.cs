@@ -2,6 +2,7 @@ using EmailLabeler.Actions;
 using EmailLabeler.Configuration;
 using EmailLabeler.Engine;
 using EmailLabeler.Ports;
+using EmailLabeler.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,7 @@ builder.Services.AddGmailIntegration();
 var app = builder.Build();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapLablerEndpoints();
 
 app.Run();
 
