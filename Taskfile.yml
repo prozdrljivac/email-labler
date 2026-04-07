@@ -58,6 +58,19 @@ tasks:
     cmds:
       - task: ngrok
 
+  cert:issue:
+    desc: Issue Let's Encrypt certificate (one-time)
+    cmds:
+      - >
+        docker compose run --rm certbot certonly
+        --webroot --webroot-path=/var/www/certbot
+        -d {{.DOMAIN}}
+        --email {{.EMAIL}}
+        --agree-tos --no-eff-email
+    vars:
+      DOMAIN: '{{.DOMAIN | default "yourdomain.com"}}'
+      EMAIL: '{{.EMAIL | default "you@example.com"}}'
+
   setup:gmail:
     desc: Print instructions for Gmail Pub/Sub + OAuth setup
     silent: true

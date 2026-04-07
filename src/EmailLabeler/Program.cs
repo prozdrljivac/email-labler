@@ -7,6 +7,12 @@ using EmailLabeler.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddJsonConsole(options =>
+{
+    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ssZ";
+    options.JsonWriterOptions = new System.Text.Json.JsonWriterOptions { Indented = false };
+});
+
 builder.Configuration.AddYamlFile("config.yaml", optional: false, reloadOnChange: true);
 builder.Services.AddRulesConfig(builder.Configuration);
 

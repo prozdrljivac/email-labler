@@ -42,13 +42,30 @@ public class EmailProcessor
 
         foreach (var (rule, actionConfig) in matches)
         {
+            _logger.LogInformation(
+                "Rule matched for email {MessageId}: from={From}, action={ActionType}",
+                messageId, email.From, actionConfig.Type);
+
             var handler = _actions.FirstOrDefault(a => a.Type == actionConfig.Type);
             if (handler is null)
             {
                 _logger.LogWarning("No handler for action type {ActionType}", actionConfig.Type);
                 continue;
             }
-            await handler.ExecuteAsync(email, actionConfig, _repo);
+
+            try
+            {
+                await handler.ExecuteAsync(email, actionConfig, _repo);
+                _logger.LogInformation(
+                    "Action {ActionType} executed for email {MessageId}",
+                    actionConfig.Type, messageId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Action {ActionType} failed for email {MessageId}",
+                    actionConfig.Type, messageId);
+            }
         }
     }
 }

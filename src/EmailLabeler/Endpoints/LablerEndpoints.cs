@@ -39,6 +39,7 @@ public static class LablerEndpoints
         ILoggerFactory loggerFactory)
     {
         var logger = loggerFactory.CreateLogger("EmailLabeler.Endpoints.LablerEndpoints");
+        logger.LogInformation("Webhook received with message ID {PubSubMessageId}", envelope.Message.MessageId);
 
         GmailNotification? notification;
         try
@@ -59,6 +60,9 @@ public static class LablerEndpoints
             logger.LogWarning("Failed to deserialize Pub/Sub notification data");
             return Results.BadRequest();
         }
+
+        logger.LogDebug("Notification decoded for {Email} at history {HistoryId}",
+            notification.EmailAddress, notification.HistoryId);
 
         var messageIds = await repo.GetNewMessageIdsAsync(notification.HistoryId);
 
