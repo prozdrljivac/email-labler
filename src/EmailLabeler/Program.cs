@@ -12,6 +12,8 @@ builder.Services.AddSingleton<IEmailAction, LabelAction>();
 builder.Services.AddSingleton<IEmailAction, ArchiveAction>();
 builder.Services.AddScoped<EmailProcessor>();
 
+builder.Services.AddGmailIntegration();
+
 var app = builder.Build();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));

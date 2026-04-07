@@ -19,4 +19,7 @@ public interface IEmailRepository
 
     /// <summary>Renews the push notification watch subscription.</summary>
     Task RenewWatchAsync();
+
+    /// <summary>Gets new message IDs from history since the given history ID.</summary>
+    Task<IEnumerable<string>> GetNewMessageIdsAsync(ulong historyId);
 }
