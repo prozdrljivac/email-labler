@@ -43,15 +43,66 @@ tasks:
 
   ngrok:
     desc: Start ngrok tunnel, print public URL
+    preconditions:
+      - sh: command -v ngrok
+        msg: "ngrok is not installed. Install via: brew install ngrok/ngrok/ngrok"
+      - sh: test -n "$NGROK_AUTHTOKEN"
+        msg: "NGROK_AUTHTOKEN environment variable is not set"
     cmds:
-      - echo "not yet implemented"
+      - ngrok http 80 --log stdout
 
   dev:
     desc: Start full local dev environment (docker + ngrok)
+    deps:
+      - docker:up
     cmds:
-      - echo "not yet implemented"
+      - task: ngrok
 
   setup:gmail:
     desc: Print instructions for Gmail Pub/Sub + OAuth setup
+    silent: true
     cmds:
-      - echo "not yet implemented"
+      - |
+        echo "==========================================="
+        echo "  Gmail Webhook Labeler - Setup Guide"
+        echo "==========================================="
+        echo ""
+        echo "1. Create a Google Cloud project at:"
+        echo "   https://console.cloud.google.com/"
+        echo ""
+        echo "2. Enable these APIs:"
+        echo "   - Gmail API"
+        echo "   - Cloud Pub/Sub API"
+        echo ""
+        echo "3. Create OAuth 2.0 credentials:"
+        echo "   - Type: Desktop application"
+        echo "   - Download the client_secret.json"
+        echo ""
+        echo "4. Generate a refresh token:"
+        echo "   (Use the Google OAuth Playground or a helper script)"
+        echo ""
+        echo "5. Create a Pub/Sub topic:"
+        echo "   gcloud pubsub topics create gmail-labeler"
+        echo ""
+        echo "6. Grant Gmail publish permissions:"
+        echo "   gcloud pubsub topics add-iam-policy-binding gmail-labeler \\"
+        echo "     --member=serviceAccount:gmail-api-push@system.gserviceaccount.com \\"
+        echo "     --role=roles/pubsub.publisher"
+        echo ""
+        echo "7. Create a push subscription:"
+        echo "   gcloud pubsub subscriptions create gmail-labeler-sub \\"
+        echo "     --topic=gmail-labeler \\"
+        echo "     --push-endpoint=https://<YOUR-URL>/webhook"
+        echo ""
+        echo "8. Set environment variables in .env:"
+        echo "   GMAIL_CLIENT_ID=<your-client-id>"
+        echo "   GMAIL_CLIENT_SECRET=<your-client-secret>"
+        echo "   GMAIL_REFRESH_TOKEN=<your-refresh-token>"
+        echo "   GMAIL_USER_EMAIL=<your-email@gmail.com>"
+        echo "   PUBSUB_VERIFICATION_TOKEN=<your-token>"
+        echo "   NGROK_AUTHTOKEN=<your-ngrok-token>"
+        echo ""
+        echo "9. Start the dev environment:"
+        echo "   task dev"
+        echo ""
+        echo "==========================================="
