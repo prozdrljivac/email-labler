@@ -17,4 +17,7 @@ public class GmailConfig
 
     /// <summary>Pub/Sub topic name for push notifications.</summary>
     public string TopicName { get; set; } = "";
+
+    /// <summary>Service account email used for Pub/Sub OIDC authentication.</summary>
+    public string ServiceAccountEmail { get; set; } = "";
 }

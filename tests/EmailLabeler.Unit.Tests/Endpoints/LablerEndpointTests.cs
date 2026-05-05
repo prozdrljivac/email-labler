@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -17,6 +18,13 @@ namespace EmailLabeler.Unit.Tests.Endpoints;
 
 public class LablerEndpointTests
 {
+    private static IPubSubTokenValidator CreatePermissiveValidator()
+    {
+        var validator = Substitute.For<IPubSubTokenValidator>();
+        validator.ValidateAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        return validator;
+    }
+
     [Fact]
     public async Task ValidPubSubPayload_ProcessesMessageAndReturnsOk()
     {
@@ -36,6 +44,8 @@ public class LablerEndpointTests
                     services.RemoveAll<IValidateOptions<EmailLabeler.Configuration.GmailConfig>>();
                     services.RemoveAll<IEmailRepository>();
                     services.RemoveAll<EmailLabeler.Adapters.IGmailRepository>();
+                    services.RemoveAll<IPubSubTokenValidator>();
+                    services.AddSingleton(CreatePermissiveValidator());
                     services.AddScoped<IEmailRepository>(_ => mockRepo);
                 });
             });
@@ -49,7 +59,10 @@ public class LablerEndpointTests
             "projects/test/subscriptions/gmail");
 
         var ct = TestContext.Current.CancellationToken;
-        var response = await client.PostAsJsonAsync("/labler", payload, ct);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+        request.Content = JsonContent.Create(payload);
+        var response = await client.SendAsync(request, ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await mockRepo.Received(1).GetNewMessageIdsAsync(12345);
@@ -70,6 +83,8 @@ public class LablerEndpointTests
                     services.RemoveAll<IValidateOptions<EmailLabeler.Configuration.GmailConfig>>();
                     services.RemoveAll<IEmailRepository>();
                     services.RemoveAll<EmailLabeler.Adapters.IGmailRepository>();
+                    services.RemoveAll<IPubSubTokenValidator>();
+                    services.AddSingleton(CreatePermissiveValidator());
                     services.AddScoped<IEmailRepository>(_ => mockRepo);
                 });
             });
@@ -83,7 +98,10 @@ public class LablerEndpointTests
             "projects/test/subscriptions/gmail");
 
         var ct = TestContext.Current.CancellationToken;
-        var response = await client.PostAsJsonAsync("/labler", payload, ct);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+        request.Content = JsonContent.Create(payload);
+        var response = await client.SendAsync(request, ct);
 
         // JSON deserialization of non-JSON returns null → BadRequest
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -103,6 +121,8 @@ public class LablerEndpointTests
                     services.RemoveAll<IValidateOptions<EmailLabeler.Configuration.GmailConfig>>();
                     services.RemoveAll<IEmailRepository>();
                     services.RemoveAll<EmailLabeler.Adapters.IGmailRepository>();
+                    services.RemoveAll<IPubSubTokenValidator>();
+                    services.AddSingleton(CreatePermissiveValidator());
                     services.AddScoped<IEmailRepository>(_ => mockRepo);
                 });
             });
@@ -114,7 +134,10 @@ public class LablerEndpointTests
             "projects/test/subscriptions/gmail");
 
         var ct = TestContext.Current.CancellationToken;
-        var response = await client.PostAsJsonAsync("/labler", payload, ct);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+        request.Content = JsonContent.Create(payload);
+        var response = await client.SendAsync(request, ct);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -134,6 +157,8 @@ public class LablerEndpointTests
                     services.RemoveAll<IValidateOptions<EmailLabeler.Configuration.GmailConfig>>();
                     services.RemoveAll<IEmailRepository>();
                     services.RemoveAll<EmailLabeler.Adapters.IGmailRepository>();
+                    services.RemoveAll<IPubSubTokenValidator>();
+                    services.AddSingleton(CreatePermissiveValidator());
                     services.AddScoped<IEmailRepository>(_ => mockRepo);
                 });
             });
@@ -147,7 +172,10 @@ public class LablerEndpointTests
             "projects/test/subscriptions/gmail");
 
         var ct = TestContext.Current.CancellationToken;
-        var response = await client.PostAsJsonAsync("/labler", payload, ct);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+        request.Content = JsonContent.Create(payload);
+        var response = await client.SendAsync(request, ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await mockRepo.Received(1).GetNewMessageIdsAsync(12345);

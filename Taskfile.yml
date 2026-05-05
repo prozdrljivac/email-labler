@@ -112,7 +112,7 @@ tasks:
         echo "   GMAIL_CLIENT_SECRET=<your-client-secret>"
         echo "   GMAIL_REFRESH_TOKEN=<your-refresh-token>"
         echo "   GMAIL_USER_EMAIL=<your-email@gmail.com>"
-        echo "   PUBSUB_VERIFICATION_TOKEN=<your-token>"
+        echo "   PUBSUB_SERVICE_ACCOUNT_EMAIL=<your-sa>@<project>.iam.gserviceaccount.com"
         echo "   NGROK_AUTHTOKEN=<your-ngrok-token>"
         echo ""
         echo "9. Start the dev environment:"

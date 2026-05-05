@@ -25,6 +25,9 @@ public class GmailConfigValidator : IValidateOptions<GmailConfig>
         if (string.IsNullOrWhiteSpace(options.TopicName))
             errors.Add("PUBSUB_TOPIC_NAME environment variable is not set.");
 
+        if (string.IsNullOrWhiteSpace(options.ServiceAccountEmail))
+            errors.Add("PUBSUB_SERVICE_ACCOUNT_EMAIL environment variable is not set.");
+
         return errors.Count > 0
             ? ValidateOptionsResult.Fail(errors)
             : ValidateOptionsResult.Success;

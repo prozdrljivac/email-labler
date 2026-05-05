@@ -33,6 +33,7 @@ public static class ServiceCollectionExtensions
             config.RefreshToken = Environment.GetEnvironmentVariable("GMAIL_REFRESH_TOKEN") ?? "";
             config.UserEmail = Environment.GetEnvironmentVariable("GMAIL_USER_EMAIL") ?? "";
             config.TopicName = Environment.GetEnvironmentVariable("PUBSUB_TOPIC_NAME") ?? "";
+            config.ServiceAccountEmail = Environment.GetEnvironmentVariable("PUBSUB_SERVICE_ACCOUNT_EMAIL") ?? "";
         });
         services.AddSingleton<IValidateOptions<GmailConfig>, GmailConfigValidator>();
         services.AddOptionsWithValidateOnStart<GmailConfig>();

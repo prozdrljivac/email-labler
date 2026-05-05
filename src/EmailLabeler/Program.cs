@@ -21,6 +21,7 @@ builder.Services.AddSingleton<IEmailAction, ArchiveAction>();
 builder.Services.AddScoped<EmailProcessor>();
 
 builder.Services.AddGmailIntegration();
+builder.Services.AddSingleton<IPubSubTokenValidator, PubSubTokenValidator>();
 builder.Services.AddHostedService<WatchRenewalService>();
 
 var app = builder.Build();

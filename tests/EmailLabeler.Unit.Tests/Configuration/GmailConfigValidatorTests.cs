@@ -14,7 +14,8 @@ public class GmailConfigValidatorTests
         ClientSecret = "test-client-secret",
         RefreshToken = "test-refresh-token",
         UserEmail = "user@example.com",
-        TopicName = "projects/my-project/topics/gmail"
+        TopicName = "projects/my-project/topics/gmail",
+        ServiceAccountEmail = "sa@project.iam.gserviceaccount.com"
     };
 
     [Fact]
@@ -86,6 +87,18 @@ public class GmailConfigValidatorTests
     }
 
     [Fact]
+    public void MissingServiceAccountEmail_ReturnsFailure()
+    {
+        var config = ValidConfig();
+        config.ServiceAccountEmail = "";
+
+        var result = _validator.Validate(null, config);
+
+        Assert.True(result.Failed);
+        Assert.Contains("PUBSUB_SERVICE_ACCOUNT_EMAIL", result.FailureMessage);
+    }
+
+    [Fact]
     public void AllFieldsMissing_ReturnsAllErrors()
     {
         var config = new GmailConfig();
@@ -98,5 +111,6 @@ public class GmailConfigValidatorTests
         Assert.Contains("GMAIL_REFRESH_TOKEN", result.FailureMessage);
         Assert.Contains("GMAIL_USER_EMAIL", result.FailureMessage);
         Assert.Contains("PUBSUB_TOPIC_NAME", result.FailureMessage);
+        Assert.Contains("PUBSUB_SERVICE_ACCOUNT_EMAIL", result.FailureMessage);
     }
 }

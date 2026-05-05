@@ -27,7 +27,7 @@ Run `task setup:gmail` for a step-by-step setup guide.
 | `GMAIL_CLIENT_SECRET`       | OAuth 2.0 client secret                 | Yes            |
 | `GMAIL_REFRESH_TOKEN`       | OAuth 2.0 refresh token                 | Yes            |
 | `GMAIL_USER_EMAIL`          | Gmail address to monitor                | Yes            |
-| `PUBSUB_VERIFICATION_TOKEN` | Token to validate Pub/Sub push requests | Yes (prod)     |
+| `PUBSUB_SERVICE_ACCOUNT_EMAIL` | Pub/Sub OIDC service account email   | Yes (prod)     |
 | `NGROK_AUTHTOKEN`           | ngrok authentication token              | Local dev only |
 
 ## Available Commands

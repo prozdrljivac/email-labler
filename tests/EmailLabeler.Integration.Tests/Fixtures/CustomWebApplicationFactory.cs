@@ -1,4 +1,5 @@
 using EmailLabeler.Adapters;
+using EmailLabeler.Endpoints;
 using EmailLabeler.Ports;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Services;
@@ -9,13 +10,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NSubstitute;
 
 namespace EmailLabeler.Integration.Tests.Fixtures;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     public required string WireMockBaseUrl { get; init; }
-    public string VerificationToken { get; init; } = "test-token";
     public Dictionary<string, string?> ExtraConfig { get; init; } = new();
 
     private static readonly string RepoRoot = FindRepoRoot();
@@ -30,7 +31,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["rules:0:match:from"] = "@newsletter.com",
                 ["rules:0:actions:0:type"] = "label",
                 ["rules:0:actions:0:label"] = "Newsletters",
-                ["PUBSUB_VERIFICATION_TOKEN"] = VerificationToken,
             };
             foreach (var kvp in ExtraConfig)
                 settings[kvp.Key] = kvp.Value;
@@ -44,6 +44,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<GmailService>();
             services.RemoveAll<IGmailRepository>();
             services.RemoveAll<IEmailRepository>();
+            services.RemoveAll<IPubSubTokenValidator>();
+
+            // Register a permissive token validator for integration tests
+            var mockValidator = Substitute.For<IPubSubTokenValidator>();
+            mockValidator.ValidateAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+            services.AddSingleton(mockValidator);
 
             // Register GmailService pointing at WireMock
             services.AddSingleton(_ => new GmailService(new BaseClientService.Initializer

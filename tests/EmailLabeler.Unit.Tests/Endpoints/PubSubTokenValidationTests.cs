@@ -3,12 +3,11 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using EmailLabeler.Endpoints;
 using EmailLabeler.Ports;
 using EmailLabeler.Unit.Tests.Helpers;
-using EmailLabeler.Endpoints;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -28,7 +27,7 @@ public class PubSubTokenValidationTests
             "projects/test/subscriptions/gmail");
     }
 
-    private static WebApplicationFactory<Program> CreateFactory(string token)
+    private static WebApplicationFactory<Program> CreateFactory(IPubSubTokenValidator tokenValidator)
     {
         var mockRepo = Substitute.For<IEmailRepository>();
         mockRepo.GetNewMessageIdsAsync(Arg.Any<ulong>()).Returns(Enumerable.Empty<string>());
@@ -37,19 +36,16 @@ public class PubSubTokenValidationTests
             .WithWebHostBuilder(builder =>
             {
                 builder.UseSetting(WebHostDefaults.ContentRootKey, TestHelper.RepoRoot);
-                builder.ConfigureAppConfiguration((_, config) =>
-                {
-                    config.AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        ["PUBSUB_VERIFICATION_TOKEN"] = token,
-                    });
-                });
                 builder.ConfigureServices(services =>
                 {
                     services.RemoveAll<IValidateOptions<EmailLabeler.Configuration.GmailConfig>>();
                     services.RemoveAll<IEmailRepository>();
                     services.RemoveAll<EmailLabeler.Adapters.IGmailRepository>();
+                    services.RemoveAll<IPubSubTokenValidator>();
+                    services.AddSingleton(tokenValidator);
                     services.AddScoped<IEmailRepository>(_ => mockRepo);
+                    services.Configure<EmailLabeler.Configuration.GmailConfig>(c =>
+                        c.ServiceAccountEmail = "test@test.iam.gserviceaccount.com");
                 });
             });
     }
@@ -58,11 +54,15 @@ public class PubSubTokenValidationTests
     public async Task ValidToken_ReturnsOk()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var factory = CreateFactory("test-secret");
+        var mockValidator = Substitute.For<IPubSubTokenValidator>();
+        mockValidator.ValidateAsync("valid-jwt", "test@test.iam.gserviceaccount.com")
+            .Returns(true);
+
+        await using var factory = CreateFactory(mockValidator);
         using var client = factory.CreateClient();
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-secret");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "valid-jwt");
         request.Content = JsonContent.Create(CreateValidPayload());
 
         var response = await client.SendAsync(request, ct);
@@ -74,7 +74,9 @@ public class PubSubTokenValidationTests
     public async Task MissingAuthHeader_ReturnsUnauthorized()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var factory = CreateFactory("test-secret");
+        var mockValidator = Substitute.For<IPubSubTokenValidator>();
+
+        await using var factory = CreateFactory(mockValidator);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/labler", CreateValidPayload(), ct);
@@ -83,14 +85,18 @@ public class PubSubTokenValidationTests
     }
 
     [Fact]
-    public async Task WrongToken_ReturnsUnauthorized()
+    public async Task InvalidToken_ReturnsUnauthorized()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var factory = CreateFactory("test-secret");
+        var mockValidator = Substitute.For<IPubSubTokenValidator>();
+        mockValidator.ValidateAsync("invalid-jwt", "test@test.iam.gserviceaccount.com")
+            .Returns(false);
+
+        await using var factory = CreateFactory(mockValidator);
         using var client = factory.CreateClient();
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "wrong-token");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "invalid-jwt");
         request.Content = JsonContent.Create(CreateValidPayload());
 
         var response = await client.SendAsync(request, ct);

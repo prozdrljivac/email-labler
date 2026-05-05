@@ -2,8 +2,10 @@ namespace EmailLabeler.Endpoints;
 
 using System.Text;
 using System.Text.Json;
+using EmailLabeler.Configuration;
 using EmailLabeler.Engine;
 using EmailLabeler.Ports;
+using Microsoft.Extensions.Options;
 
 /// <summary>Maps the labler endpoints for receiving Pub/Sub push notifications.</summary>
 public static class LablerEndpoints
@@ -14,18 +16,16 @@ public static class LablerEndpoints
         app.MapPost("/labler", HandleLabler)
             .AddEndpointFilter(async (context, next) =>
             {
-                var config = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
-                var expectedToken = config["PUBSUB_VERIFICATION_TOKEN"];
-
-                if (string.IsNullOrEmpty(expectedToken))
-                    return await next(context);
+                var validator = context.HttpContext.RequestServices.GetRequiredService<IPubSubTokenValidator>();
+                var gmailConfig = context.HttpContext.RequestServices.GetRequiredService<IOptions<GmailConfig>>().Value;
 
                 var authHeader = context.HttpContext.Request.Headers.Authorization.FirstOrDefault();
                 if (authHeader is null || !authHeader.StartsWith("Bearer "))
                     return Results.Unauthorized();
 
                 var token = authHeader["Bearer ".Length..];
-                if (token != expectedToken)
+                var isValid = await validator.ValidateAsync(token, gmailConfig.ServiceAccountEmail);
+                if (!isValid)
                     return Results.Unauthorized();
 
                 return await next(context);
