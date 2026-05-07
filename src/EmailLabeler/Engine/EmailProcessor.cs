@@ -1,7 +1,6 @@
 namespace EmailLabeler.Engine;
 
 using EmailLabeler.Configuration;
-using EmailLabeler.Domain;
 using EmailLabeler.Ports;
 using Microsoft.Extensions.Options;
 

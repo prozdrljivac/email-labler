@@ -1,6 +1,5 @@
 using EmailLabeler.Integration.Tests.Fixtures;
 using WireMock.Admin.Mappings;
-using WireMock.Admin.Requests;
 using Xunit;
 
 namespace EmailLabeler.Integration.Tests.Gmail;

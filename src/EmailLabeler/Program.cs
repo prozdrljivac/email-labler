@@ -1,9 +1,9 @@
 using EmailLabeler.Actions;
 using EmailLabeler.Configuration;
+using EmailLabeler.Endpoints;
 using EmailLabeler.Engine;
 using EmailLabeler.Ports;
 using EmailLabeler.Services;
-using EmailLabeler.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 

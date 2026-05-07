@@ -1,5 +1,4 @@
 using EmailLabeler.Configuration;
-using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace EmailLabeler.Unit.Tests.Configuration;

@@ -1,6 +1,5 @@
 using EmailLabeler.Configuration;
 using EmailLabeler.Domain;
-using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace EmailLabeler.Unit.Tests.Configuration;

@@ -3,8 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using EmailLabeler.Integration.Tests.Fixtures;
 using EmailLabeler.Endpoints;
+using EmailLabeler.Integration.Tests.Fixtures;
 using WireMock.Admin.Mappings;
 using Xunit;
 
