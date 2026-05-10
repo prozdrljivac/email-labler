@@ -144,6 +144,29 @@ In-repo automation work, listed in priority order. Each phase is self-contained 
 - `gcloud pubsub topics list` shows the new topic
 - App receives push notifications end-to-end after cutover
 
+## Phase 6 — Observability & Alerting
+
+**Goal**: get notified when the app is down, when background jobs stop running, or when errors occur. Currently there is zero visibility into production health beyond SSH + `docker logs`.
+
+**Problem areas to address**:
+- The `/health` endpoint always returns 200 regardless of actual system state (e.g. expired Gmail credentials, unreachable API)
+- `WatchRenewalService` runs every 6 days; if it fails silently, the Gmail watch expires after 7 days and the app stops receiving push notifications with no indication
+- Errors in `EmailProcessor` and `WatchRenewalService` are caught and logged to stdout but nobody is watching stdout
+- No Docker-level health checking — container can be stuck but Docker reports it as running
+- No external monitoring — if the server, container, or nginx goes down, nobody knows
+
+**Areas to investigate**:
+- Replace the static `/health` with ASP.NET Core health checks that verify real dependencies (Gmail API connectivity, watch renewal recency)
+- External uptime monitoring (e.g. UptimeRobot free tier) to ping `/health` and alert via email when it goes down
+- Heartbeat/cron monitoring (e.g. Healthchecks.io free tier) for `WatchRenewalService` — the app pings out after each successful renewal; alert if the ping stops arriving
+- Docker `HEALTHCHECK` in Dockerfile and `docker-compose.yml` so container health is visible in `docker ps`
+- Whether error-level tracking (e.g. Sentry) is worth adding, or if uptime monitoring alone is sufficient
+
+**Design notes**:
+- Keep it proportionate to project scale — prefer free tiers and minimal new dependencies.
+- This should be done before or alongside Phase 2, since the CI/CD health check polling (`curl /health`) is meaningless with the current static endpoint.
+- Any new secrets (monitoring service URLs/tokens) should be added to the cross-cutting secrets inventory.
+
 ## Cross-cutting
 
 - **Secrets**: production secrets live in (a) GitHub Secrets for the deploy workflow, (b) Ansible Vault for the droplet `.env`. Single source of truth: `infra/SECRETS.md` listing every secret + where it lives.
