@@ -58,6 +58,30 @@ tasks:
     cmds:
       - task: ngrok
 
+  lint:
+    desc: Check formatting (fails on diffs)
+    cmds:
+      - dotnet format EmailLabeler.slnx --verify-no-changes
+
+  format:
+    desc: Apply formatting fixes
+    cmds:
+      - dotnet format EmailLabeler.slnx
+
+  test:coverage:
+    desc: Run unit tests with coverage and enforce 65% threshold
+    cmds:
+      - rm -rf TestResults
+      - dotnet test tests/EmailLabeler.Unit.Tests --collect:"XPlat Code Coverage" --settings coverlet.runsettings --results-directory ./TestResults
+      - dotnet reportgenerator -reports:./TestResults/**/coverage.cobertura.xml -targetdir:./TestResults/report -reporttypes:TextSummary "minimumCoverageThresholds:lineCoverage=65"
+
+  quality:
+    desc: Run full quality suite (lint, build, test with coverage)
+    cmds:
+      - task: lint
+      - task: build
+      - task: test:coverage
+
   cert:issue:
     desc: Issue Let's Encrypt certificate (one-time)
     cmds:

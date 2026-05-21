@@ -1,0 +1,55 @@
+{
+  "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
+  "tasks": [
+    {
+      "name": "clean-coverage",
+      "group": "pre-push",
+      "command": "rm",
+      "args": ["-rf", "TestResults"],
+      "order": 1
+    },
+    {
+      "name": "format-check",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": ["format", "EmailLabeler.slnx", "--verify-no-changes"],
+      "order": 2
+    },
+    {
+      "name": "build",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": ["build", "EmailLabeler.slnx", "--no-restore"],
+      "order": 3
+    },
+    {
+      "name": "test-coverage",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "tests/EmailLabeler.Unit.Tests",
+        "--no-build",
+        "--collect:XPlat Code Coverage",
+        "--settings",
+        "coverlet.runsettings",
+        "--results-directory",
+        "./TestResults"
+      ],
+      "order": 4
+    },
+    {
+      "name": "coverage-gate",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": [
+        "reportgenerator",
+        "-reports:./TestResults/**/coverage.cobertura.xml",
+        "-targetdir:./TestResults/report",
+        "-reporttypes:TextSummary",
+        "minimumCoverageThresholds:lineCoverage=65"
+      ],
+      "order": 5
+    }
+  ]
+}

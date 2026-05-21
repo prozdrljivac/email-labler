@@ -41,9 +41,13 @@ Run `task setup:gmail` for a step-by-step setup guide.
 | `task docker:up`        | Start app + nginx via Docker Compose              |
 | `task docker:down`      | Stop all containers                               |
 | `task docker:build`     | Build the Docker image                            |
+| `task lint`             | Check formatting (fails on diffs)                 |
+| `task format`           | Apply formatting fixes                            |
 | `task test:unit`        | Run unit tests                                    |
 | `task test:integration` | Run integration tests (requires Docker)           |
 | `task test:all`         | Run all tests                                     |
+| `task test:coverage`    | Run unit tests with coverage (65% threshold)      |
+| `task quality`          | Run full quality suite (lint, build, coverage)     |
 | `task setup:gmail`      | Print Gmail/Pub/Sub setup instructions            |
 | `task cert:issue`       | Issue a Let's Encrypt TLS certificate             |
 

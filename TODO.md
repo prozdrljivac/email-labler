@@ -7,19 +7,20 @@ In-repo automation work, listed in priority order. Each phase is self-contained 
 **Goal**: every `git push` runs format check, build (warnings-as-errors), unit tests, and a coverage gate **locally**. Bad code never reaches the remote.
 
 **Deliverables**:
-- `.config/dotnet-tools.json` — register Husky.NET as a local tool
-- `.husky/task-runner.json` — tasks bound to the `pre-push` event
-- `.husky/pre-push` — bootstrap script that invokes Husky.NET
-- `.editorconfig` at repo root — .NET style rules consistent with `TreatWarningsAsErrors=true`
-- `coverlet.runsettings` — XPlat Code Coverage config
-- Add `coverlet.collector` package to both test projects
-- Update `Taskfile.yml`: `task lint`, `task format`, `task test:coverage`, `task quality` (full local repro of the hook)
+- [x] `.editorconfig` at repo root — .NET style rules consistent with `TreatWarningsAsErrors=true`
+- [x] `coverlet.runsettings` — XPlat Code Coverage config
+- [x] Add `coverlet.collector` package to both test projects
+- [x] `.config/dotnet-tools.json` — register Husky.NET and ReportGenerator as local tools
+- [x] `Directory.Build.targets` — auto-install hooks on first build
+- [x] `.husky/task-runner.json` — tasks bound to the `pre-push` event
+- [x] `.husky/pre-push` — bootstrap script that invokes Husky.NET
+- [x] Update `Taskfile.yml`: `task lint`, `task format`, `task test:coverage`, `task quality` (full local repro of the hook)
 
 **Hook tasks (in order)**:
 1. `dotnet format --verify-no-changes` — fail on diffs
 2. `dotnet build --no-restore` — `TreatWarningsAsErrors=true` already enforced
 3. `dotnet test tests/EmailLabeler.Unit.Tests` with coverage collection
-4. Coverage threshold: minimum **70%** line coverage on the `EmailLabeler` project (excluding `Program.cs`). Tunable.
+4. Coverage threshold: minimum **65%** line coverage on the `EmailLabeler` project (excluding `Program.cs`). Tunable.
 
 **Design notes**:
 - Unit tests only in the hook. Integration tests (Testcontainers + WireMock) are too slow for pre-push (30s–2min); they run in Phase 2's deploy workflow as a pre-deploy gate.

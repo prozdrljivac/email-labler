@@ -1,0 +1,8 @@
+<Project>
+  <Target Name="HuskyInstall" BeforeTargets="Build"
+          Condition="'$(HUSKY)' != '0' AND !Exists('$(MSBuildThisFileDirectory).husky/_/.husky-stamp')">
+    <Exec Command="dotnet tool restore" WorkingDirectory="$(MSBuildThisFileDirectory)" StandardOutputImportance="Low" />
+    <Exec Command="dotnet husky install" WorkingDirectory="$(MSBuildThisFileDirectory)" StandardOutputImportance="Low" />
+    <Touch Files="$(MSBuildThisFileDirectory).husky/_/.husky-stamp" AlwaysCreate="true" />
+  </Target>
+</Project>
