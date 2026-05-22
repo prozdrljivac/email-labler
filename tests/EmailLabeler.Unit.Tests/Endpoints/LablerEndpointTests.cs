@@ -10,6 +10,7 @@ using EmailLabeler.Unit.Tests.Helpers;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
@@ -180,5 +181,79 @@ public class LablerEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await mockRepo.Received(1).GetNewMessageIdsAsync(12345);
         await mockRepo.DidNotReceive().GetEmailAsync(Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task EmailAuthenticationFailure_ReturnsServiceUnavailable()
+    {
+        var mockRepo = Substitute.For<IEmailRepository>();
+        var errorLogs = new List<string>();
+        mockRepo.GetNewMessageIdsAsync(12345)
+            .Returns(Task.FromException<IEnumerable<string>>(
+                new EmailAuthenticationException("Credentials rejected")));
+
+        await using var factory = new WebApplicationFactory<Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting(Microsoft.AspNetCore.Hosting.WebHostDefaults.ContentRootKey, TestHelper.RepoRoot);
+                builder.ConfigureServices(services =>
+                {
+                    services.AddLogging(logging => logging.AddProvider(new ListLoggerProvider(errorLogs)));
+                    services.RemoveAll<IValidateOptions<EmailLabeler.Configuration.GmailConfig>>();
+                    services.RemoveAll<IEmailRepository>();
+                    services.RemoveAll<EmailLabeler.Adapters.IGmailRepository>();
+                    services.RemoveAll<IPubSubTokenValidator>();
+                    services.AddSingleton(CreatePermissiveValidator());
+                    services.AddScoped<IEmailRepository>(_ => mockRepo);
+                });
+            });
+
+        using var client = factory.CreateClient();
+
+        var notification = new { emailAddress = "user@gmail.com", historyId = 12345 };
+        var data = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(notification)));
+        var payload = new PubSubPushEnvelope(
+            new PubSubMessagePayload(data, "mid-1", "2024-01-01T00:00:00Z"),
+            "projects/test/subscriptions/gmail");
+
+        var ct = TestContext.Current.CancellationToken;
+        var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+        request.Content = JsonContent.Create(payload);
+        var response = await client.SendAsync(request, ct);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains(errorLogs, message => message.Contains("Gmail credentials rejected"));
+        await mockRepo.Received(1).GetNewMessageIdsAsync(12345);
+        await mockRepo.DidNotReceive().GetEmailAsync(Arg.Any<string>());
+    }
+
+    private sealed class ListLoggerProvider(List<string> errorLogs) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => new ListLogger(errorLogs);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class ListLogger(List<string> errorLogs) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Error)
+                errorLogs.Add(formatter(state, exception));
+        }
     }
 }

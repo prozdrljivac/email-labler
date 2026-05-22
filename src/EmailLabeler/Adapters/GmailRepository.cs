@@ -1,6 +1,10 @@
 namespace EmailLabeler.Adapters;
 
+using System.Net;
 using EmailLabeler.Domain;
+using EmailLabeler.Ports;
+using Google;
+using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Gmail.v1.Data;
 using Microsoft.Extensions.Logging;
@@ -30,7 +34,8 @@ public class GmailRepository : IGmailRepository
     /// <inheritdoc/>
     public async Task<Email> GetEmailAsync(string messageId)
     {
-        var msg = await _gmail.Users.Messages.Get(_userId, messageId).ExecuteAsync();
+        var msg = await ExecuteGmailAsync(
+            () => _gmail.Users.Messages.Get(_userId, messageId).ExecuteAsync());
 
         var from = msg.Payload?.Headers?
             .FirstOrDefault(h => h.Name.Equals("From", StringComparison.OrdinalIgnoreCase))?.Value ?? "";
@@ -46,14 +51,16 @@ public class GmailRepository : IGmailRepository
     {
         var labelId = await GetLabelIdAsync(labelName);
         var body = new ModifyMessageRequest { AddLabelIds = [labelId] };
-        await _gmail.Users.Messages.Modify(body, _userId, messageId).ExecuteAsync();
+        await ExecuteGmailAsync(
+            () => _gmail.Users.Messages.Modify(body, _userId, messageId).ExecuteAsync());
     }
 
     /// <inheritdoc/>
     public async Task ArchiveAsync(string messageId)
     {
         var body = new ModifyMessageRequest { RemoveLabelIds = ["INBOX"] };
-        await _gmail.Users.Messages.Modify(body, _userId, messageId).ExecuteAsync();
+        await ExecuteGmailAsync(
+            () => _gmail.Users.Messages.Modify(body, _userId, messageId).ExecuteAsync());
     }
 
     /// <inheritdoc/>
@@ -62,7 +69,8 @@ public class GmailRepository : IGmailRepository
         if (_labelCache.ContainsKey(labelName))
             return;
 
-        var response = await _gmail.Users.Labels.List(_userId).ExecuteAsync();
+        var response = await ExecuteGmailAsync(
+            () => _gmail.Users.Labels.List(_userId).ExecuteAsync());
         var existing = response.Labels?.FirstOrDefault(
             l => l.Name.Equals(labelName, StringComparison.OrdinalIgnoreCase));
 
@@ -72,8 +80,8 @@ public class GmailRepository : IGmailRepository
             return;
         }
 
-        var newLabel = await _gmail.Users.Labels.Create(
-            new Label { Name = labelName }, _userId).ExecuteAsync();
+        var newLabel = await ExecuteGmailAsync(
+            () => _gmail.Users.Labels.Create(new Label { Name = labelName }, _userId).ExecuteAsync());
         _labelCache[labelName] = newLabel.Id;
         _logger.LogInformation("Created label {LabelName} with ID {LabelId}", labelName, newLabel.Id);
     }
@@ -82,7 +90,8 @@ public class GmailRepository : IGmailRepository
     public async Task RenewWatchAsync()
     {
         var request = new WatchRequest { TopicName = _topicName };
-        await _gmail.Users.Watch(request, _userId).ExecuteAsync();
+        await ExecuteGmailAsync(
+            () => _gmail.Users.Watch(request, _userId).ExecuteAsync());
     }
 
     /// <inheritdoc/>
@@ -92,12 +101,20 @@ public class GmailRepository : IGmailRepository
         request.StartHistoryId = historyId;
         request.HistoryTypes = UsersResource.HistoryResource.ListRequest.HistoryTypesEnum.MessageAdded;
 
-        var response = await request.ExecuteAsync();
-        return response.History?
-            .SelectMany(h => h.MessagesAdded ?? [])
-            .Select(m => m.Message.Id)
-            .Distinct()
-            ?? [];
+        try
+        {
+            var response = await ExecuteGmailAsync(() => request.ExecuteAsync());
+            return response.History?
+                .SelectMany(h => h.MessagesAdded ?? [])
+                .Select(m => m.Message.Id)
+                .Distinct()
+                ?? [];
+        }
+        catch (GoogleApiException ex) when (ex.HttpStatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning(ex, "Gmail history ID {HistoryId} is stale; acknowledging notification", historyId);
+            return [];
+        }
     }
 
     private async Task<string> GetLabelIdAsync(string labelName)
@@ -107,5 +124,17 @@ public class GmailRepository : IGmailRepository
 
         await EnsureLabelExistsAsync(labelName);
         return _labelCache[labelName];
+    }
+
+    private static async Task<T> ExecuteGmailAsync<T>(Func<Task<T>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (TokenResponseException ex)
+        {
+            throw new EmailAuthenticationException("Email provider credentials were rejected.", ex);
+        }
     }
 }

@@ -210,4 +210,97 @@ public class FullWebhookFlowTests
         Assert.DoesNotContain(requests,
             r => r.Request!.Method == "POST" && r.Request!.Url!.Contains("/modify"));
     }
+
+    [Fact]
+    public async Task StaleHistoryId_ReturnsOkWithoutProcessing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await _fixture.AdminApi.ResetMappingsAsync(null, ct);
+        await _fixture.AdminApi.DeleteRequestsAsync(ct);
+
+        await _fixture.AdminApi.PostMappingAsync(new MappingModel
+        {
+            Request = new RequestModel { Methods = ["GET"], Path = "/gmail/v1/users/me/history" },
+            Response = new ResponseModel
+            {
+                StatusCode = 404,
+                BodyAsJson = new
+                {
+                    error = new
+                    {
+                        code = 404,
+                        message = "Requested entity was not found.",
+                        status = "NOT_FOUND"
+                    }
+                }
+            }
+        }, ct);
+
+        await using var factory = new CustomWebApplicationFactory
+        {
+            WireMockBaseUrl = _fixture.BaseUrl
+        };
+        using var client = factory.CreateClient();
+
+        var notification = new { emailAddress = "user@gmail.com", historyId = 12345 };
+        var data = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(notification)));
+        var payload = new PubSubPushEnvelope(
+            new PubSubMessagePayload(data, "mid-3", "2024-01-01T00:00:00Z"),
+            "projects/test/subscriptions/gmail");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+        request.Content = JsonContent.Create(payload);
+
+        var response = await client.SendAsync(request, ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var requests = await _fixture.AdminApi.GetRequestsAsync(ct);
+        Assert.DoesNotContain(requests,
+            r => r.Request!.Method == "GET" && r.Request!.Url!.Contains("/messages/"));
+    }
+
+    [Fact]
+    public async Task InvalidGrantFromTokenEndpoint_ReturnsServiceUnavailable()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await _fixture.AdminApi.ResetMappingsAsync(null, ct);
+        await _fixture.AdminApi.DeleteRequestsAsync(ct);
+
+        await _fixture.AdminApi.PostMappingAsync(new MappingModel
+        {
+            Request = new RequestModel { Methods = ["POST"], Path = "/token" },
+            Response = new ResponseModel
+            {
+                StatusCode = 400,
+                BodyAsJson = new
+                {
+                    error = "invalid_grant",
+                    error_description = "Token has been expired or revoked."
+                }
+            }
+        }, ct);
+
+        await using var factory = new CustomWebApplicationFactory
+        {
+            WireMockBaseUrl = _fixture.BaseUrl,
+            OAuthTokenServerUrl = _fixture.BaseUrl.TrimEnd('/') + "/token"
+        };
+        using var client = factory.CreateClient();
+
+        var notification = new { emailAddress = "user@gmail.com", historyId = 12345 };
+        var data = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(notification)));
+        var payload = new PubSubPushEnvelope(
+            new PubSubMessagePayload(data, "mid-4", "2024-01-01T00:00:00Z"),
+            "projects/test/subscriptions/gmail");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/labler");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-token");
+        request.Content = JsonContent.Create(payload);
+
+        var response = await client.SendAsync(request, ct);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
 }

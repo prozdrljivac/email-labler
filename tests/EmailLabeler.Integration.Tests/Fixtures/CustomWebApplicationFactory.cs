@@ -1,6 +1,9 @@
 using EmailLabeler.Adapters;
 using EmailLabeler.Endpoints;
 using EmailLabeler.Ports;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Auth.OAuth2.Flows;
+using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Services;
 using Microsoft.AspNetCore.Hosting;
@@ -17,6 +20,7 @@ namespace EmailLabeler.Integration.Tests.Fixtures;
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     public required string WireMockBaseUrl { get; init; }
+    public string? OAuthTokenServerUrl { get; init; }
     public Dictionary<string, string?> ExtraConfig { get; init; } = new();
 
     private static readonly string RepoRoot = FindRepoRoot();
@@ -52,11 +56,33 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(mockValidator);
 
             // Register GmailService pointing at WireMock
-            services.AddSingleton(_ => new GmailService(new BaseClientService.Initializer
+            services.AddSingleton(_ =>
             {
-                BaseUri = WireMockBaseUrl.TrimEnd('/') + "/",
-                ApplicationName = "EmailLabeler-Test"
-            }));
+                var initializer = new BaseClientService.Initializer
+                {
+                    BaseUri = WireMockBaseUrl.TrimEnd('/') + "/",
+                    ApplicationName = "EmailLabeler-Test"
+                };
+
+                if (OAuthTokenServerUrl is not null)
+                {
+                    initializer.HttpClientInitializer = new UserCredential(
+                        new AuthorizationCodeFlow(new AuthorizationCodeFlow.Initializer(
+                            "https://accounts.google.com/o/oauth2/v2/auth",
+                            OAuthTokenServerUrl)
+                        {
+                            ClientSecrets = new ClientSecrets
+                            {
+                                ClientId = "test-client-id",
+                                ClientSecret = "test-client-secret"
+                            }
+                        }),
+                        "me",
+                        new TokenResponse { RefreshToken = "test-refresh-token" });
+                }
+
+                return new GmailService(initializer);
+            });
 
             // Register GmailRepository using WireMock-backed GmailService
             services.AddSingleton<IGmailRepository>(sp => new GmailRepository(

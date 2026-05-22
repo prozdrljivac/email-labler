@@ -64,11 +64,21 @@ public static class LablerEndpoints
         logger.LogDebug("Notification decoded for {Email} at history {HistoryId}",
             notification.EmailAddress, notification.HistoryId);
 
-        var messageIds = await repo.GetNewMessageIdsAsync(notification.HistoryId);
-
-        foreach (var messageId in messageIds)
+        try
         {
-            await processor.ProcessAsync(messageId);
+            var messageIds = await repo.GetNewMessageIdsAsync(notification.HistoryId);
+
+            foreach (var messageId in messageIds)
+            {
+                await processor.ProcessAsync(messageId);
+            }
+        }
+        catch (EmailAuthenticationException ex)
+        {
+            logger.LogError(
+                ex,
+                "Gmail credentials rejected - re-mint GMAIL_REFRESH_TOKEN and publish the OAuth consent screen to production");
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
         return Results.Ok();

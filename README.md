@@ -15,9 +15,20 @@ A self-hosted Gmail webhook service that automatically labels and archives incom
 2. Copy `.env.example` to `.env` and fill in your credentials (see Environment Variables below)
 3. Edit `config.yaml` with your labeling rules
 4. Run `task dev` to start the full local environment (Docker + ngrok)
-5. Copy the ngrok HTTPS URL and configure it as your Pub/Sub push endpoint
+5. Copy the ngrok HTTPS URL and configure `https://<YOUR-URL>/labler` as your Pub/Sub push endpoint
 
 Run `task setup:gmail` for a step-by-step setup guide.
+
+### Gmail OAuth Token Setup
+
+Before minting `GMAIL_REFRESH_TOKEN`, open the Google Cloud OAuth consent screen
+and set the publishing status to **In production**. Refresh tokens for apps left
+in **Testing** expire after about 7 days, which causes Gmail authentication to
+fail with `invalid_grant`.
+
+If the app logs `Gmail credentials rejected`, re-mint `GMAIL_REFRESH_TOKEN` after
+publishing the consent screen to production, then restart the app with the new
+token.
 
 ## Environment Variables
 
