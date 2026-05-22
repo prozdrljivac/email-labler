@@ -173,3 +173,80 @@ In-repo automation work, listed in priority order. Each phase is self-contained 
 - **Secrets**: production secrets live in (a) GitHub Secrets for the deploy workflow, (b) Ansible Vault for the droplet `.env`. Single source of truth: `infra/SECRETS.md` listing every secret + where it lives.
 - **Docs**: each phase ships its own README. Top-level README gets an "Operations" section pointing at `infra/`.
 - **Legacy cleanup**: drop the hardcoded domain in `docker/nginx.conf` in Phase 3; remove the manual deploy section of the README in Phase 2.
+
+## Future Design — Pluggable email providers (one instance, one provider)
+
+**Vision**: the labeler becomes provider-agnostic. A client picks a provider via an
+`EMAIL_PROVIDER` env var (e.g. `gmail`), supplies that provider's env vars + rules
+config, and gets a working labeler on a single stable endpoint `/labler`. To also
+run Outlook, they start a **separate instance** with `EMAIL_PROVIDER=outlook` and
+the Outlook env vars. One deployment = one provider; no runtime multiplexing, no
+per-provider routes, no dispatcher.
+
+**Problem with today's design**: the abstraction is half-leaky. Mailbox operations
+(`GetEmailAsync`, `ApplyLabelAsync`, `ArchiveAsync`, `EnsureLabelExistsAsync`) are
+genuinely portable, but `IEmailRepository` also carries Gmail-specific concerns —
+`GetNewMessageIdsAsync(ulong historyId)` (Gmail's History cursor) and
+`RenewWatchAsync()` (Gmail's "watch"). The inbound `/labler` handler is also welded
+to Gmail: it model-binds `PubSubPushEnvelope`, its auth filter is hardcoded to
+`PubSubTokenValidator` (OIDC bearer), and the provider is hardcoded via
+`AddGmailIntegration()` in `Program.cs`. An Outlook adapter can't honestly implement
+any of this (no `historyId`; Graph delivers the message id in the notification, uses
+`clientState` auth + a validation handshake, and renews subscriptions via `PATCH`).
+
+**Target shape**: keep `/labler` thin and provider-neutral; put everything
+provider-specific behind three interfaces selected together at startup.
+
+```
+POST /labler  (single, stable, provider-agnostic)
+  → INotificationGateway        (selected by EMAIL_PROVIDER)
+       HandleAsync(HttpRequest) → authenticate + parse + resolve → messageIds
+                                  (Gmail's historyId logic lives in here)
+  → for each messageId: EmailProcessor.ProcessAsync(id)   ← shared core
+       ├─ IEmailRepository.GetEmailAsync(id)               ← mailbox port (portable)
+       ├─ RuleEngine.Evaluate(...)                          ← shared
+       └─ IEmailAction.ExecuteAsync(...)                    ← shared
+```
+
+| Interface (provider-selected) | Responsibility | Gmail | Outlook (Graph) |
+|---|---|---|---|
+| `IEmailRepository` | get / label / archive / ensure-label | Gmail SDK | Graph SDK |
+| `INotificationGateway` | inbound auth + parse → messageIds | Pub/Sub + OIDC + `history.list` | Graph notif + `clientState` + `resourceData.id` |
+| `IPushSubscriptionManager` | `RenewAsync()` + `RenewInterval` | `users.watch()`, 7d | `PATCH expirationDateTime`, ~3d |
+
+Shared/provider-agnostic: the `/labler` route, `EmailProcessor`, `RuleEngine`,
+`IEmailAction` strategies, rules config, and `WatchRenewalService`.
+
+**Deliverables**:
+- [ ] Shrink `IEmailRepository` to the four portable mailbox operations; move
+      `GetNewMessageIdsAsync` / `historyId` into the Gmail gateway as a private detail.
+- [ ] New `INotificationGateway` owning inbound auth + payload parsing + resolution to
+      message IDs. Move the OIDC-bearer filter logic into the Gmail implementation.
+- [ ] `/labler` handler takes the raw `HttpRequest` (no `PubSubPushEnvelope` binding)
+      and delegates to `INotificationGateway`.
+- [ ] New `IPushSubscriptionManager` (`RenewAsync()` + `RenewInterval`);
+      `WatchRenewalService` drives it at the provider's cadence (also retires the
+      hardcoded 6-day interval).
+- [ ] `AddEmailProvider(configuration)` reads `EMAIL_PROVIDER` and `switch`es to
+      register the one provider's three impls + its config object. No keyed services
+      (only one set is ever registered). `Program.cs` calls this instead of
+      `AddGmailIntegration()`.
+- [ ] Make config validation conditional on the selected provider — today
+      `GmailConfigValidator` runs unconditionally at startup, so an Outlook deployment
+      would refuse to boot on missing `GMAIL_*` vars.
+
+**Design notes**:
+- **Outlook validation handshake**: Graph echoes a `?validationToken=...` on
+  subscription creation that must be returned as plain text within ~10s, and ongoing
+  notifications carry a `clientState`. So `INotificationGateway.HandleAsync` must be
+  able to return *either* a direct HTTP response (validation echo / 401) *or* a set of
+  message IDs — e.g. a small `NotificationResult { IResult? ImmediateResponse;
+  IEnumerable<string> MessageIds }`. Designing for this now means `/labler` won't need
+  reshaping when Outlook lands.
+- **Rule of three**: the current seam was shaped by a single implementation, so it
+  looks generic but is molded to Gmail. Validate the redesign by actually stubbing the
+  Outlook adapter — a second concrete provider is what reveals whether the boundary is
+  right.
+- Recommended first step (if/when picked up): refactor the existing app into this
+  shape **Gmail-only** (keeping Gmail fully working), then add Outlook as a clean
+  second provider.
