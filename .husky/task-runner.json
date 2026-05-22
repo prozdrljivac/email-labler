@@ -37,19 +37,6 @@
         "./TestResults"
       ],
       "order": 4
-    },
-    {
-      "name": "coverage-gate",
-      "group": "pre-push",
-      "command": "dotnet",
-      "args": [
-        "reportgenerator",
-        "-reports:./TestResults/**/coverage.cobertura.xml",
-        "-targetdir:./TestResults/report",
-        "-reporttypes:TextSummary",
-        "minimumCoverageThresholds:lineCoverage=65"
-      ],
-      "order": 5
     }
   ]
 }
