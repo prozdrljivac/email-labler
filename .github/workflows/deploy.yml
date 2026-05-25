@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -45,6 +47,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -94,6 +98,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Validate required secrets
         env:
@@ -110,8 +116,7 @@ jobs:
           PUBSUB_TOPIC_NAME: ${{ secrets.PUBSUB_TOPIC_NAME }}
           CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
         run: |
-          missing=0
-          for name in \
+          node scripts/github/validate-env.mjs \
             DROPLET_HOST \
             DROPLET_USER \
             DROPLET_SSH_KEY \
@@ -124,31 +129,34 @@ jobs:
             PUBSUB_SERVICE_ACCOUNT_EMAIL \
             PUBSUB_TOPIC_NAME \
             CONFIG_YAML
-          do
-            if [ -z "${!name}" ]; then
-              echo "::error::$name is required"
-              missing=1
-            fi
-          done
-
-          exit "$missing"
 
       - name: Configure SSH
         env:
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
           DROPLET_SSH_KEY: ${{ secrets.DROPLET_SSH_KEY }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DROPLET_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$DROPLET_HOST" >> ~/.ssh/known_hosts
+        run: node scripts/github/prepare-ssh.mjs
+
+      - name: Prepare production configuration
+        env:
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GMAIL_USER_EMAIL: ${{ secrets.GMAIL_USER_EMAIL }}
+          PUBSUB_SERVICE_ACCOUNT_EMAIL: ${{ secrets.PUBSUB_SERVICE_ACCOUNT_EMAIL }}
+          PUBSUB_TOPIC_NAME: ${{ secrets.PUBSUB_TOPIC_NAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+          CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
+        run: node scripts/github/prepare-deploy-config.mjs
 
       - name: Sync repository to droplet
         env:
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
           DROPLET_USER: ${{ secrets.DROPLET_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key "$DROPLET_USER@$DROPLET_HOST" \
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$DROPLET_USER@$DROPLET_HOST" \
             'mkdir -p /opt/email-labeler'
 
           rsync -az --delete \
@@ -159,50 +167,38 @@ jobs:
             --exclude 'TestResults/' \
             --exclude '**/bin/' \
             --exclude '**/obj/' \
-            -e "ssh -i ~/.ssh/deploy_key" \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
             ./ "$DROPLET_USER@$DROPLET_HOST:/opt/email-labeler/"
 
-      - name: Write production configuration
+      - name: Sync production configuration
         env:
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
           DROPLET_USER: ${{ secrets.DROPLET_USER }}
-          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
-          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
-          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
-          GMAIL_USER_EMAIL: ${{ secrets.GMAIL_USER_EMAIL }}
-          PUBSUB_SERVICE_ACCOUNT_EMAIL: ${{ secrets.PUBSUB_SERVICE_ACCOUNT_EMAIL }}
-          PUBSUB_TOPIC_NAME: ${{ secrets.PUBSUB_TOPIC_NAME }}
-          DOMAIN: ${{ secrets.DOMAIN }}
-          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
-          CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
         run: |
-          ssh -i ~/.ssh/deploy_key "$DROPLET_USER@$DROPLET_HOST" 'cat > /opt/email-labeler/.env && chmod 600 /opt/email-labeler/.env' <<EOF
-          GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID
-          GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET
-          GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN
-          GMAIL_USER_EMAIL=$GMAIL_USER_EMAIL
-          PUBSUB_SERVICE_ACCOUNT_EMAIL=$PUBSUB_SERVICE_ACCOUNT_EMAIL
-          PUBSUB_TOPIC_NAME=$PUBSUB_TOPIC_NAME
-          DOMAIN=$DOMAIN
-          LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL
-          EOF
-
-          ssh -i ~/.ssh/deploy_key "$DROPLET_USER@$DROPLET_HOST" 'cat > /opt/email-labeler/config.yaml && chmod 600 /opt/email-labeler/config.yaml' <<EOF
-          $CONFIG_YAML
-          EOF
+          set -euo pipefail
+          rsync -az \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            .deploy/.env .deploy/config.yaml \
+            "$DROPLET_USER@$DROPLET_HOST:/opt/email-labeler/"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$DROPLET_USER@$DROPLET_HOST" \
+            'chmod 600 /opt/email-labeler/.env /opt/email-labeler/config.yaml'
 
       - name: Deploy with Docker Compose
         env:
           DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
           DROPLET_USER: ${{ secrets.DROPLET_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key "$DROPLET_USER@$DROPLET_HOST" \
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$DROPLET_USER@$DROPLET_HOST" \
             'cd /opt/email-labeler && docker compose up -d --build'
 
       - name: Health check
         env:
           DOMAIN: ${{ secrets.DOMAIN }}
         run: |
+          set -euo pipefail
           for attempt in {1..12}; do
             if curl --fail --silent --show-error "https://$DOMAIN/health"; then
               exit 0
@@ -214,3 +210,8 @@ jobs:
 
           echo "Health check did not pass within 60s."
           exit 1
+
+      - name: Cleanup sensitive files
+        if: always()
+        run: |
+          rm -rf .deploy ~/.ssh/deploy_key
