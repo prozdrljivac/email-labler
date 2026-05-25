@@ -20,4 +20,12 @@ public class ArchiveActionTests
 
         await repo.Received(1).ArchiveAsync("msg1");
     }
+
+    [Fact]
+    public void Type_ReturnsArchive()
+    {
+        var sut = new ArchiveAction();
+
+        Assert.Equal(ActionType.Archive, sut.Type);
+    }
 }

@@ -57,6 +57,9 @@ jobs:
       - name: Restore local tools
         run: dotnet tool restore
 
+      - name: Create test config
+        run: cp config.example.yaml config.yaml
+
       - name: Run unit tests with coverage
         run: |
           dotnet test tests/EmailLabeler.Unit.Tests \

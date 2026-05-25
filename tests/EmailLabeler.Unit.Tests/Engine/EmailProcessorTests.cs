@@ -131,4 +131,48 @@ public class EmailProcessorTests
         await archiveAction.Received(1).ExecuteAsync(
             email, Arg.Is<ActionConfig>(a => a.Type == ActionType.Archive), _repo);
     }
+
+    [Fact]
+    public async Task ActionFailure_LogsErrorAndContinuesProcessing()
+    {
+        var email = new Email("msg1", "sender@newsletter.com", "Subject", ["INBOX"]);
+        _repo.GetEmailAsync("msg1").Returns(email);
+
+        var failingAction = Substitute.For<IEmailAction>();
+        failingAction.Type.Returns(ActionType.Label);
+        failingAction.ExecuteAsync(email, Arg.Any<ActionConfig>(), _repo)
+            .Returns(Task.FromException(new InvalidOperationException("Label failed")));
+
+        var archiveAction = Substitute.For<IEmailAction>();
+        archiveAction.Type.Returns(ActionType.Archive);
+
+        var config = new RulesConfig
+        {
+            Rules =
+            [
+                new Rule
+                {
+                    Match = new MatchCondition { From = "@newsletter.com" },
+                    Actions =
+                    [
+                        new ActionConfig { Type = ActionType.Label, Label = "Newsletters" },
+                        new ActionConfig { Type = ActionType.Archive }
+                    ]
+                }
+            ]
+        };
+
+        var processor = CreateProcessor(config, failingAction, archiveAction);
+
+        await processor.ProcessAsync("msg1");
+
+        _logger.Received(1).Log(
+            LogLevel.Error,
+            Arg.Any<EventId>(),
+            Arg.Any<object>(),
+            Arg.Any<Exception?>(),
+            Arg.Any<Func<object, Exception?, string>>());
+        await archiveAction.Received(1).ExecuteAsync(
+            email, Arg.Is<ActionConfig>(a => a.Type == ActionType.Archive), _repo);
+    }
 }
