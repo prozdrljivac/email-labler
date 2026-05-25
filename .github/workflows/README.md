@@ -8,7 +8,7 @@
 | Secret | Purpose |
 | --- | --- |
 | `DROPLET_HOST` | Public host or IP address for the production droplet. |
-| `DROPLET_USER` | SSH user with write access to `/opt/email-labeler` and Docker permissions. |
+| `DROPLET_USER` | SSH user with write access to `/opt/email-labler` and Docker permissions. |
 | `DROPLET_SSH_KEY` | Private SSH key for the deploy user. |
 | `DOMAIN` | Production domain used by the post-deploy health check. |
 | `LETSENCRYPT_EMAIL` | Contact email for certificate automation. Kept in the inventory for Phase 3. |
@@ -56,7 +56,7 @@ Paste that value into the `PROD` environment secret named `DROPLET_SSH_KEY`.
    - run integration tests
 3. Start the `deploy` job only after both previous jobs pass.
 4. Configure SSH from `DROPLET_SSH_KEY`.
-5. Sync the repo to `/opt/email-labeler` with `rsync`.
+5. Sync the repo to `/opt/email-labler` with `rsync`.
 6. Render `.env` and `config.yaml` from GitHub Secrets.
 7. Run `docker compose up -d --build` on the droplet.
 8. Poll `https://${DOMAIN}/health` for up to 60 seconds.

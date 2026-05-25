@@ -46,7 +46,7 @@ In-repo automation work, listed in priority order. Each phase is self-contained 
 2. Setup .NET 10
 3. Run integration tests — pre-deploy gate
 4. Setup SSH using `DROPLET_SSH_KEY` secret
-5. rsync repo to `/opt/email-labeler` on droplet
+5. rsync repo to `/opt/email-labler` on droplet
 6. Write `.env` on droplet from secrets
 7. `docker compose up -d --build` over SSH
 8. Health check: poll `https://${DOMAIN}/health` with retries; fail workflow if not green within 60s

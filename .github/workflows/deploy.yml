@@ -157,7 +157,7 @@ jobs:
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             "$DROPLET_USER@$DROPLET_HOST" \
-            'mkdir -p /opt/email-labeler'
+            'mkdir -p /opt/email-labler'
 
           rsync -az --delete \
             --exclude '.git/' \
@@ -168,7 +168,7 @@ jobs:
             --exclude '**/bin/' \
             --exclude '**/obj/' \
             -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
-            ./ "$DROPLET_USER@$DROPLET_HOST:/opt/email-labeler/"
+            ./ "$DROPLET_USER@$DROPLET_HOST:/opt/email-labler/"
 
       - name: Sync production configuration
         env:
@@ -179,10 +179,10 @@ jobs:
           rsync -az \
             -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
             .deploy/.env .deploy/config.yaml \
-            "$DROPLET_USER@$DROPLET_HOST:/opt/email-labeler/"
+            "$DROPLET_USER@$DROPLET_HOST:/opt/email-labler/"
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             "$DROPLET_USER@$DROPLET_HOST" \
-            'chmod 600 /opt/email-labeler/.env /opt/email-labeler/config.yaml'
+            'chmod 600 /opt/email-labler/.env /opt/email-labler/config.yaml'
 
       - name: Deploy with Docker Compose
         env:
@@ -192,7 +192,7 @@ jobs:
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             "$DROPLET_USER@$DROPLET_HOST" \
-            'cd /opt/email-labeler && docker compose up -d --build'
+            'cd /opt/email-labler && COMPOSE_PROJECT_NAME=email-labler docker compose up -d --build'
 
       - name: Health check
         env:

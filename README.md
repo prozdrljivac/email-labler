@@ -129,7 +129,7 @@ Production deploys are handled by the GitHub Actions workflow in
   integration tests pass.
 - Manual deploys can be started from the workflow's `workflow_dispatch` trigger.
 - Required GitHub Secrets are listed in `.github/workflows/README.md`.
-- The workflow syncs the repo to `/opt/email-labeler`, writes `.env` and
+- The workflow syncs the repo to `/opt/email-labler`, writes `.env` and
   `config.yaml` from secrets, runs `docker compose up -d --build`, and checks
   `https://${DOMAIN}/health`.
 
