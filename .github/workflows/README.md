@@ -20,6 +20,28 @@
 | `PUBSUB_TOPIC_NAME` | Gmail watch Pub/Sub topic name. |
 | `CONFIG_YAML` | Full production `config.yaml` contents. |
 
+## SSH Key Format
+
+`DROPLET_SSH_KEY` must be an unencrypted private key for the deploy user. The
+workflow accepts either raw multiline key text or a base64-encoded key.
+
+To generate a dedicated deploy key:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions email-labler" -f email-labeler-deploy -N ""
+```
+
+Add `email-labeler-deploy.pub` to the droplet deploy user's
+`~/.ssh/authorized_keys`.
+
+For the GitHub environment secret, prefer a single-line base64 value:
+
+```bash
+base64 -i email-labeler-deploy | pbcopy
+```
+
+Paste that value into the `PROD` environment secret named `DROPLET_SSH_KEY`.
+
 ## Flow
 
 1. Run the `code-quality` job:
