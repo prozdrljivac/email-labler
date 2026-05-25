@@ -38,8 +38,8 @@ In-repo automation work, listed in priority order. Each phase is self-contained 
 **Goal**: push to `main` deploys to production automatically.
 
 **Deliverables**:
-- `.github/workflows/deploy.yml` — triggers: `push` to `main` + `workflow_dispatch`
-- `.github/workflows/README.md` — list of required secrets
+- [x] `.github/workflows/deploy.yml` — triggers: `push` to `main` + `workflow_dispatch`
+- [x] `.github/workflows/README.md` — list of required secrets
 
 **Workflow steps**:
 1. Checkout

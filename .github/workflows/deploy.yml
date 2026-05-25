@@ -1,0 +1,212 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  code-quality:
+    name: Code quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore EmailLabeler.slnx
+
+      - name: Check formatting
+        run: dotnet format EmailLabeler.slnx --verify-no-changes
+
+      - name: Build
+        run: dotnet build EmailLabeler.slnx --no-restore
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore EmailLabeler.slnx
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Run unit tests with coverage
+        run: |
+          dotnet test tests/EmailLabeler.Unit.Tests \
+            --no-restore \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory ./TestResults
+
+      - name: Enforce coverage threshold
+        run: |
+          dotnet reportgenerator \
+            "-reports:./TestResults/**/coverage.cobertura.xml" \
+            -targetdir:./TestResults/report \
+            -reporttypes:TextSummary \
+            "minimumCoverageThresholds:lineCoverage=65"
+
+      - name: Check Docker
+        run: docker info
+
+      - name: Run integration tests
+        run: dotnet test tests/EmailLabeler.Integration.Tests --no-restore
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs:
+      - code-quality
+      - tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
+          DROPLET_USER: ${{ secrets.DROPLET_USER }}
+          DROPLET_SSH_KEY: ${{ secrets.DROPLET_SSH_KEY }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GMAIL_USER_EMAIL: ${{ secrets.GMAIL_USER_EMAIL }}
+          PUBSUB_SERVICE_ACCOUNT_EMAIL: ${{ secrets.PUBSUB_SERVICE_ACCOUNT_EMAIL }}
+          PUBSUB_TOPIC_NAME: ${{ secrets.PUBSUB_TOPIC_NAME }}
+          CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
+        run: |
+          missing=0
+          for name in \
+            DROPLET_HOST \
+            DROPLET_USER \
+            DROPLET_SSH_KEY \
+            DOMAIN \
+            LETSENCRYPT_EMAIL \
+            GMAIL_CLIENT_ID \
+            GMAIL_CLIENT_SECRET \
+            GMAIL_REFRESH_TOKEN \
+            GMAIL_USER_EMAIL \
+            PUBSUB_SERVICE_ACCOUNT_EMAIL \
+            PUBSUB_TOPIC_NAME \
+            CONFIG_YAML
+          do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is required"
+              missing=1
+            fi
+          done
+
+          exit "$missing"
+
+      - name: Configure SSH
+        env:
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
+          DROPLET_SSH_KEY: ${{ secrets.DROPLET_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DROPLET_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DROPLET_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync repository to droplet
+        env:
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
+          DROPLET_USER: ${{ secrets.DROPLET_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DROPLET_USER@$DROPLET_HOST" \
+            'mkdir -p /opt/email-labeler'
+
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '.env' \
+            --exclude 'config.yaml' \
+            --exclude 'TestResults/' \
+            --exclude '**/bin/' \
+            --exclude '**/obj/' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ "$DROPLET_USER@$DROPLET_HOST:/opt/email-labeler/"
+
+      - name: Write production configuration
+        env:
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
+          DROPLET_USER: ${{ secrets.DROPLET_USER }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GMAIL_USER_EMAIL: ${{ secrets.GMAIL_USER_EMAIL }}
+          PUBSUB_SERVICE_ACCOUNT_EMAIL: ${{ secrets.PUBSUB_SERVICE_ACCOUNT_EMAIL }}
+          PUBSUB_TOPIC_NAME: ${{ secrets.PUBSUB_TOPIC_NAME }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
+          CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DROPLET_USER@$DROPLET_HOST" 'cat > /opt/email-labeler/.env && chmod 600 /opt/email-labeler/.env' <<EOF
+          GMAIL_CLIENT_ID=$GMAIL_CLIENT_ID
+          GMAIL_CLIENT_SECRET=$GMAIL_CLIENT_SECRET
+          GMAIL_REFRESH_TOKEN=$GMAIL_REFRESH_TOKEN
+          GMAIL_USER_EMAIL=$GMAIL_USER_EMAIL
+          PUBSUB_SERVICE_ACCOUNT_EMAIL=$PUBSUB_SERVICE_ACCOUNT_EMAIL
+          PUBSUB_TOPIC_NAME=$PUBSUB_TOPIC_NAME
+          DOMAIN=$DOMAIN
+          LETSENCRYPT_EMAIL=$LETSENCRYPT_EMAIL
+          EOF
+
+          ssh -i ~/.ssh/deploy_key "$DROPLET_USER@$DROPLET_HOST" 'cat > /opt/email-labeler/config.yaml && chmod 600 /opt/email-labeler/config.yaml' <<EOF
+          $CONFIG_YAML
+          EOF
+
+      - name: Deploy with Docker Compose
+        env:
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
+          DROPLET_USER: ${{ secrets.DROPLET_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$DROPLET_USER@$DROPLET_HOST" \
+            'cd /opt/email-labeler && docker compose up -d --build'
+
+      - name: Health check
+        env:
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error "https://$DOMAIN/health"; then
+              exit 0
+            fi
+
+            echo "Health check failed on attempt $attempt; retrying in 5s..."
+            sleep 5
+          done
+
+          echo "Health check did not pass within 60s."
+          exit 1

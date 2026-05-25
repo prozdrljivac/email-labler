@@ -122,19 +122,17 @@ rules:
 
 ## Production Deployment
 
-### DigitalOcean Setup
+Production deploys are handled by the GitHub Actions workflow in
+`.github/workflows/deploy.yml`.
 
-1. Provision a droplet with Docker installed
-2. Clone the repo and configure `.env`
-3. Update `docker/nginx.conf` — replace `yourdomain.com` with your actual domain
-4. Start the stack: `task docker:up`
-5. Issue a TLS certificate:
+- Pushes to `main` deploy automatically after code quality, unit coverage, and
+  integration tests pass.
+- Manual deploys can be started from the workflow's `workflow_dispatch` trigger.
+- Required GitHub Secrets are listed in `.github/workflows/README.md`.
+- The workflow syncs the repo to `/opt/email-labeler`, writes `.env` and
+  `config.yaml` from secrets, runs `docker compose up -d --build`, and checks
+  `https://${DOMAIN}/health`.
 
-```bash
-task cert:issue DOMAIN=yourdomain.com EMAIL=you@example.com
-```
-
-6. Restart nginx to pick up the certificate: `docker compose restart nginx`
-7. Configure your Pub/Sub subscription push endpoint to `https://yourdomain.com/labler`
-
-The certbot container automatically renews certificates every 12 hours.
+The existing droplet still needs Docker, Docker Compose, nginx/certbot volumes,
+and the initial TLS certificate in place until the Ansible/Terraform phases
+replace the manual server provisioning.
