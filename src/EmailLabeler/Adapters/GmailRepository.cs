@@ -87,6 +87,13 @@ public class GmailRepository : IGmailRepository
     }
 
     /// <inheritdoc/>
+    public async Task CheckConnectivityAsync()
+    {
+        await ExecuteGmailAsync(
+            () => _gmail.Users.GetProfile(_userId).ExecuteAsync());
+    }
+
+    /// <inheritdoc/>
     public async Task RenewWatchAsync()
     {
         var request = new WatchRequest { TopicName = _topicName };

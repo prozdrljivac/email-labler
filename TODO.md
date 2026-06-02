@@ -157,7 +157,7 @@ In-repo automation work, listed in priority order. Each phase is self-contained 
 - No external monitoring — if the server, container, or nginx goes down, nobody knows
 
 **Areas to investigate**:
-- Replace the static `/health` with ASP.NET Core health checks that verify real dependencies (Gmail API connectivity, watch renewal recency)
+- [x] Replace the static `/health` with ASP.NET Core health checks that verify real dependencies (Gmail API connectivity via `users.getProfile`, watch renewal recency). `/health` now returns 503 when a dependency is broken and a JSON per-check breakdown. Checks: `gmail` (in `AddGmailIntegration`) and `watch-renewal` (driven by `WatchRenewalState`, stale threshold = `WatchRenewal:IntervalDays` + `WatchRenewal:HealthGraceHours`, default 12h).
 - External uptime monitoring (e.g. UptimeRobot free tier) to ping `/health` and alert via email when it goes down
 - Heartbeat/cron monitoring (e.g. Healthchecks.io free tier) for `WatchRenewalService` — the app pings out after each successful renewal; alert if the ping stops arriving
 - Docker `HEALTHCHECK` in Dockerfile and `docker-compose.yml` so container health is visible in `docker ps`

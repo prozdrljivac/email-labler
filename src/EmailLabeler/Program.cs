@@ -2,8 +2,10 @@ using EmailLabeler.Actions;
 using EmailLabeler.Configuration;
 using EmailLabeler.Endpoints;
 using EmailLabeler.Engine;
+using EmailLabeler.Health;
 using EmailLabeler.Ports;
 using EmailLabeler.Services;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,13 +22,22 @@ builder.Services.AddSingleton<IEmailAction, LabelAction>();
 builder.Services.AddSingleton<IEmailAction, ArchiveAction>();
 builder.Services.AddScoped<EmailProcessor>();
 
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<WatchRenewalState>();
+
 builder.Services.AddGmailIntegration();
 builder.Services.AddSingleton<IPubSubTokenValidator, PubSubTokenValidator>();
 builder.Services.AddHostedService<WatchRenewalService>();
 
+builder.Services.AddHealthChecks()
+    .AddCheck<WatchRenewalHealthCheck>("watch-renewal");
+
 var app = builder.Build();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = HealthResponseWriter.WriteAsync
+});
 app.MapLablerEndpoints();
 
 app.Run();

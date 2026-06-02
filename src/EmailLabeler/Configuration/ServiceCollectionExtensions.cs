@@ -1,6 +1,7 @@
 namespace EmailLabeler.Configuration;
 
 using EmailLabeler.Adapters;
+using EmailLabeler.Health;
 using EmailLabeler.Ports;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
@@ -70,6 +71,9 @@ public static class ServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<GmailRepository>>());
         });
         services.AddSingleton<IEmailRepository>(sp => sp.GetRequiredService<IGmailRepository>());
+
+        services.AddHealthChecks()
+            .AddCheck<GmailConnectivityHealthCheck>("gmail");
 
         return services;
     }
