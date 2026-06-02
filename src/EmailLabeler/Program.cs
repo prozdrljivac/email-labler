@@ -9,6 +9,10 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Error tracking + cron/uptime monitoring. With no SENTRY_DSN set, the SDK is disabled (no-op),
+// so local and CI runs need no Sentry account. Error-level logs are captured as events by default.
+builder.WebHost.UseSentry(options => options.Dsn = builder.Configuration["SENTRY_DSN"] ?? "");
+
 builder.Logging.AddJsonConsole(options =>
 {
     options.TimestampFormat = "yyyy-MM-ddTHH:mm:ssZ";
@@ -24,6 +28,7 @@ builder.Services.AddScoped<EmailProcessor>();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<WatchRenewalState>();
+builder.Services.AddSingleton<IHeartbeatNotifier, SentryCheckInNotifier>();
 
 builder.Services.AddGmailIntegration();
 builder.Services.AddSingleton<IPubSubTokenValidator, PubSubTokenValidator>();
@@ -38,6 +43,11 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = HealthResponseWriter.WriteAsync
 });
+
+// Liveness probe for Docker HEALTHCHECK: runs no dependency checks, so a Gmail outage
+// (surfaced on /health for uptime monitoring) does not mark the container itself unhealthy.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+
 app.MapLablerEndpoints();
 
 app.Run();

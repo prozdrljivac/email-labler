@@ -13,15 +13,22 @@ const envNames = [
   "LETSENCRYPT_EMAIL"
 ];
 
+// Optional vars: written to .env only when the corresponding secret is set.
+const optionalEnvNames = ["SENTRY_DSN"];
+
 mkdirSync(deployDir, { mode: 0o700, recursive: true });
 chmodSync(deployDir, 0o700);
 
+const lines = envNames.map((name) => `${name}=${requireEnv(name)}`);
+for (const name of optionalEnvNames) {
+  const value = process.env[name];
+  if (value) {
+    lines.push(`${name}=${value}`);
+  }
+}
+
 const envFile = join(deployDir, ".env");
-writeFileSync(
-  envFile,
-  envNames.map((name) => `${name}=${requireEnv(name)}`).join("\n") + "\n",
-  { encoding: "utf8", mode: 0o600 }
-);
+writeFileSync(envFile, lines.join("\n") + "\n", { encoding: "utf8", mode: 0o600 });
 chmodSync(envFile, 0o600);
 
 const configFile = join(deployDir, "config.yaml");

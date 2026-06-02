@@ -10,6 +10,14 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    # Mirrors the Dockerfile HEALTHCHECK so health is visible in `docker ps` and tunable
+    # without rebuilding the image. Targets the dependency-free liveness endpoint.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/health/live"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
   nginx:
     image: nginx:alpine
@@ -21,7 +29,8 @@ services:
       - certbot-etc:/etc/letsencrypt
       - certbot-www:/var/www/certbot
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     restart: unless-stopped
 
   certbot:

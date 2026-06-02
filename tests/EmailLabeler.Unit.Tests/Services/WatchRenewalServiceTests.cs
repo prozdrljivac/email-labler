@@ -39,7 +39,7 @@ public class WatchRenewalServiceTests
 
         var service = new WatchRenewalService(
             CreateScopeFactory(repo), NullLogger<WatchRenewalService>.Instance, config,
-            new WatchRenewalState(), TimeProvider.System);
+            new WatchRenewalState(), TimeProvider.System, Substitute.For<IHeartbeatNotifier>());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(350));
         await service.StartAsync(cts.Token);
@@ -73,7 +73,7 @@ public class WatchRenewalServiceTests
 
         var service = new WatchRenewalService(
             CreateScopeFactory(repo), NullLogger<WatchRenewalService>.Instance, config,
-            new WatchRenewalState(), TimeProvider.System);
+            new WatchRenewalState(), TimeProvider.System, Substitute.For<IHeartbeatNotifier>());
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(350));
         await service.StartAsync(cts.Token);

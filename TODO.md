@@ -158,15 +158,18 @@ In-repo automation work, listed in priority order. Each phase is self-contained 
 
 **Areas to investigate**:
 - [x] Replace the static `/health` with ASP.NET Core health checks that verify real dependencies (Gmail API connectivity via `users.getProfile`, watch renewal recency). `/health` now returns 503 when a dependency is broken and a JSON per-check breakdown. Checks: `gmail` (in `AddGmailIntegration`) and `watch-renewal` (driven by `WatchRenewalState`, stale threshold = `WatchRenewal:IntervalDays` + `WatchRenewal:HealthGraceHours`, default 12h).
-- External uptime monitoring (e.g. UptimeRobot free tier) to ping `/health` and alert via email when it goes down
-- Heartbeat/cron monitoring (e.g. Healthchecks.io free tier) for `WatchRenewalService` — the app pings out after each successful renewal; alert if the ping stops arriving
-- Docker `HEALTHCHECK` in Dockerfile and `docker-compose.yml` so container health is visible in `docker ps`
-- Whether error-level tracking (e.g. Sentry) is worth adding, or if uptime monitoring alone is sufficient
+**Consolidated to a single service — Sentry** (free Developer plan: 1 uptime monitor + 1 cron monitor + error tracking), instead of two single-purpose services. Set `SENTRY_DSN` to activate; no-op when unset.
+
+- [x] External uptime monitoring — Sentry **Uptime Monitor** (dashboard) pointing at `/health`, checked from Sentry's infra every minute, alerts after 3 consecutive fails. `/health` is a real check returning 503 on failure (in-repo support done). Create the monitor against the live deployment — see README "Observability".
+- [x] Heartbeat/cron monitoring for `WatchRenewalService` — `SentryCheckInNotifier` (via `IHeartbeatNotifier`) sends a Sentry cron check-in each cycle (`ok`/`error`) under slug `gmail-watch-renewal`, upserting a schedule matching the renewal cadence. Missed check-in → alert.
+- [x] Docker `HEALTHCHECK` in Dockerfile and `docker-compose.yml`, targeting the dependency-free `/health/live` liveness endpoint so a Gmail outage doesn't mark the container unhealthy.
+- [x] Error-level tracking — **adopted** (Sentry.AspNetCore). Captures `Error` logs + unhandled exceptions with stack traces, surfacing `EmailProcessor`/`WatchRenewalService` failures previously lost to stdout.
 
 **Design notes**:
-- Keep it proportionate to project scale — prefer free tiers and minimal new dependencies.
+- Keep it proportionate to project scale — prefer free tiers and minimal new dependencies. Settled on one service (Sentry) covering all three signals rather than two single-purpose monitors.
+- A full server/box outage can only be detected by an observer *outside* the box; hence uptime monitoring is external (Sentry-hosted), not in-app.
 - This should be done before or alongside Phase 2, since the CI/CD health check polling (`curl /health`) is meaningless with the current static endpoint.
-- Any new secrets (monitoring service URLs/tokens) should be added to the cross-cutting secrets inventory.
+- `SENTRY_DSN` (optional) is documented in `.github/workflows/README.md` and wired through `deploy.yml`.
 
 ## Cross-cutting
 

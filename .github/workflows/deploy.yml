@@ -147,6 +147,7 @@ jobs:
           DOMAIN: ${{ secrets.DOMAIN }}
           LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
           CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: node scripts/github/prepare-deploy-config.mjs
 
       - name: Sync repository to droplet

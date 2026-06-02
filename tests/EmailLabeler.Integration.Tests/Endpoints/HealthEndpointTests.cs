@@ -61,4 +61,20 @@ public class HealthEndpointTests
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Liveness_StaysHealthyEvenWhenGmailUnreachable()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await _fixture.AdminApi.ResetMappingsAsync(null, ct);
+        await _fixture.AdminApi.DeleteRequestsAsync(ct);
+
+        // No Gmail stubs: /health would be 503, but liveness runs no dependency checks.
+        await using var factory = new CustomWebApplicationFactory { WireMockBaseUrl = _fixture.BaseUrl };
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health/live", ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

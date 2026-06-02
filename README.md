@@ -39,6 +39,7 @@ token.
 | `GMAIL_REFRESH_TOKEN`       | OAuth 2.0 refresh token                 | Yes            |
 | `GMAIL_USER_EMAIL`          | Gmail address to monitor                | Yes            |
 | `PUBSUB_SERVICE_ACCOUNT_EMAIL` | Pub/Sub OIDC service account email   | Yes (prod)     |
+| `SENTRY_DSN`                | Sentry project DSN (errors + monitoring) | No (optional)  |
 | `NGROK_AUTHTOKEN`           | ngrok authentication token              | Local dev only |
 
 ## Available Commands
@@ -136,3 +137,41 @@ Production deploys are handled by the GitHub Actions workflow in
 The existing droplet still needs Docker, Docker Compose, nginx/certbot volumes,
 and the initial TLS certificate in place until the Ansible/Terraform phases
 replace the manual server provisioning.
+
+## Observability
+
+Health and monitoring are layered so each failure mode has a distinct signal:
+
+- **`GET /health`** — deep readiness check. Runs real dependency checks and returns
+  `200` (healthy/degraded) or `503` (unhealthy) with a JSON per-check breakdown:
+  - `gmail` — verifies Gmail API reachability and credential validity via
+    `users.getProfile`.
+  - `watch-renewal` — `Degraded` until the first renewal, then `Unhealthy` once the
+    last successful renewal is older than `WatchRenewal:IntervalDays` +
+    `WatchRenewal:HealthGraceHours` (defaults: 6 days + 12 hours).
+- **`GET /health/live`** — liveness check. Runs no dependency checks, so it stays `200`
+  whenever the process is serving HTTP. Used by the Docker `HEALTHCHECK` (and mirrored in
+  `docker-compose.yml`) so a Gmail outage does not mark the container itself unhealthy.
+
+### Alerting via Sentry (single service)
+
+All external alerting is consolidated into one [Sentry](https://sentry.io) project (free
+Developer plan: 1 uptime monitor + 1 cron monitor included). Set the `SENTRY_DSN` secret to
+enable it; when unset, Sentry is disabled (no-op), so local and CI runs need no account.
+
+Sentry covers three failure modes:
+
+- **Errors** — the SDK captures `Error`-level logs and unhandled exceptions as events with
+  stack traces, surfacing failures in `EmailProcessor` / `WatchRenewalService` that were
+  previously only written to stdout. No extra code beyond initialization.
+- **Uptime** — create a Sentry **Uptime Monitor** (in the dashboard) pointing at
+  `https://${DOMAIN}/health`. Sentry checks it from its own infrastructure every minute and
+  alerts after 3 consecutive failures — catching a whole-server/container/nginx outage that
+  no in-app check could report.
+- **Watch renewal** — the renewal loop sends a Sentry **cron check-in** each cycle (`ok` on
+  success, `error` on failure) under the monitor slug `gmail-watch-renewal`, upserting a
+  schedule that matches the renewal cadence. If a check-in is missed, Sentry alerts — catching
+  a silently stalled renewal loop that uptime checks would miss while the web app stays up.
+
+> Note: detecting a full server outage fundamentally requires an observer *outside* the box,
+> which is why uptime monitoring is external (Sentry-hosted) rather than in-app.

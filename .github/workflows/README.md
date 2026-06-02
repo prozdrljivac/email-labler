@@ -19,6 +19,7 @@
 | `PUBSUB_SERVICE_ACCOUNT_EMAIL` | Pub/Sub push service account email expected in OIDC tokens. |
 | `PUBSUB_TOPIC_NAME` | Gmail watch Pub/Sub topic name. |
 | `CONFIG_YAML` | Full production `config.yaml` contents. |
+| `SENTRY_DSN` | _Optional._ Sentry project DSN. When set, enables error tracking and the watch-renewal cron check-in; if unset, Sentry is disabled (no-op). |
 
 ## SSH Key Format
 
