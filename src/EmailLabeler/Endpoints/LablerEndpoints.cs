@@ -70,7 +70,15 @@ public static class LablerEndpoints
 
             foreach (var messageId in messageIds)
             {
-                await processor.ProcessAsync(messageId);
+                try
+                {
+                    await processor.ProcessAsync(messageId);
+                }
+                catch (Exception ex) when (ex is not EmailAuthenticationException)
+                {
+                    logger.LogError(ex,
+                        "Failed to process message {MessageId}; skipping to avoid redelivery", messageId);
+                }
             }
         }
         catch (EmailAuthenticationException ex)

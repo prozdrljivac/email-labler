@@ -29,6 +29,13 @@ public class EmailProcessor
     public async Task ProcessAsync(string messageId)
     {
         var email = await _repo.GetEmailAsync(messageId);
+        if (email is null)
+        {
+            _logger.LogInformation(
+                "Email {MessageId} no longer exists; nothing to process", messageId);
+            return;
+        }
+
         var matches = RuleEngine.Evaluate(email, _rulesConfig.Value.Rules).ToList();
 
         if (matches.Count == 0)

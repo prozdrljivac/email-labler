@@ -32,10 +32,19 @@ public class GmailRepository : IGmailRepository
     }
 
     /// <inheritdoc/>
-    public async Task<Email> GetEmailAsync(string messageId)
+    public async Task<Email?> GetEmailAsync(string messageId)
     {
-        var msg = await ExecuteGmailAsync(
-            () => _gmail.Users.Messages.Get(_userId, messageId).ExecuteAsync());
+        Message msg;
+        try
+        {
+            msg = await ExecuteGmailAsync(
+                () => _gmail.Users.Messages.Get(_userId, messageId).ExecuteAsync());
+        }
+        catch (GoogleApiException ex) when (ex.HttpStatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning(ex, "Message {MessageId} no longer exists; skipping", messageId);
+            return null;
+        }
 
         var from = msg.Payload?.Headers?
             .FirstOrDefault(h => h.Name.Equals("From", StringComparison.OrdinalIgnoreCase))?.Value ?? "";

@@ -59,6 +59,33 @@ public class EmailProcessorTests
     }
 
     [Fact]
+    public async Task EmailNoLongerExists_NoActionsExecuted()
+    {
+        _repo.GetEmailAsync("msg1").Returns((Email?)null);
+
+        var action = Substitute.For<IEmailAction>();
+        action.Type.Returns(ActionType.Label);
+
+        var config = new RulesConfig
+        {
+            Rules =
+            [
+                new Rule
+                {
+                    Match = new MatchCondition { From = "@newsletter.com" },
+                    Actions = [new ActionConfig { Type = ActionType.Label, Label = "Newsletters" }]
+                }
+            ]
+        };
+
+        var processor = CreateProcessor(config, action);
+        await processor.ProcessAsync("msg1");
+
+        await action.DidNotReceive().ExecuteAsync(
+            Arg.Any<Email>(), Arg.Any<ActionConfig>(), Arg.Any<IEmailRepository>());
+    }
+
+    [Fact]
     public async Task NoRulesMatch_LogsInformation_NoRepoMutations()
     {
         var email = new Email("msg1", "user@other.com", "Subject", ["INBOX"]);

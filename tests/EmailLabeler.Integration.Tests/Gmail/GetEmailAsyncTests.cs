@@ -52,10 +52,47 @@ public class GetEmailAsyncTests
 
         var email = await repo.GetEmailAsync("msg123");
 
+        Assert.NotNull(email);
         Assert.Equal("msg123", email.Id);
         Assert.Equal("sender@newsletter.com", email.From);
         Assert.Equal("Weekly digest", email.Subject);
         Assert.Contains("INBOX", email.LabelIds);
         Assert.Contains("UNREAD", email.LabelIds);
+    }
+
+    [Fact]
+    public async Task GetEmailAsync_ReturnsNull_WhenMessageNoLongerExists()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await _fixture.AdminApi.ResetMappingsAsync(null, ct);
+        await _fixture.AdminApi.DeleteRequestsAsync(ct);
+
+        await _fixture.AdminApi.PostMappingAsync(new MappingModel
+        {
+            Request = new RequestModel
+            {
+                Methods = ["GET"],
+                Path = "/gmail/v1/users/me/messages/gone123"
+            },
+            Response = new ResponseModel
+            {
+                StatusCode = 404,
+                BodyAsJson = new
+                {
+                    error = new
+                    {
+                        code = 404,
+                        message = "Requested entity was not found.",
+                        status = "NOT_FOUND"
+                    }
+                }
+            }
+        }, ct);
+
+        var repo = GmailRepositoryFactory.Create(_fixture.BaseUrl);
+
+        var email = await repo.GetEmailAsync("gone123");
+
+        Assert.Null(email);
     }
 }

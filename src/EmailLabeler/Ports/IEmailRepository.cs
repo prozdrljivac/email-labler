@@ -5,8 +5,11 @@ using EmailLabeler.Domain;
 /// <summary>Port for email provider operations. Provider-agnostic.</summary>
 public interface IEmailRepository
 {
-    /// <summary>Retrieves an email by its message ID.</summary>
-    Task<Email> GetEmailAsync(string messageId);
+    /// <summary>
+    /// Retrieves an email by its message ID, or <c>null</c> if the message no longer
+    /// exists (e.g. it was deleted or moved between notification and fetch).
+    /// </summary>
+    Task<Email?> GetEmailAsync(string messageId);
 
     /// <summary>Applies a label to the specified message.</summary>
     Task ApplyLabelAsync(string messageId, string labelName);
