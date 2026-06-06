@@ -9,9 +9,11 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Error tracking + cron/uptime monitoring. With no SENTRY_DSN set, the SDK is disabled (no-op),
-// so local and CI runs need no Sentry account. Error-level logs are captured as events by default.
-builder.WebHost.UseSentry(options => options.Dsn = builder.Configuration["SENTRY_DSN"] ?? "");
+builder.WebHost.UseSentry(options =>
+{
+    options.Dsn = builder.Configuration["SENTRY_DSN"] ?? "";
+    options.EnableLogs = true;
+});
 
 builder.Logging.AddJsonConsole(options =>
 {
