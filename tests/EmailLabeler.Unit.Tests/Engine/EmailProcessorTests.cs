@@ -16,7 +16,7 @@ public class EmailProcessorTests
 
     private EmailProcessor CreateProcessor(RulesConfig config, params IEmailAction[] actions)
     {
-        var options = Substitute.For<IOptions<RulesConfig>>();
+        var options = Substitute.For<IOptionsSnapshot<RulesConfig>>();
         options.Value.Returns(config);
         return new EmailProcessor(_repo, options, actions, _logger);
     }

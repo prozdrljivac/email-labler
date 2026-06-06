@@ -8,14 +8,14 @@ using Microsoft.Extensions.Options;
 public class EmailProcessor
 {
     private readonly IEmailRepository _repo;
-    private readonly IOptions<RulesConfig> _rulesConfig;
+    private readonly IOptionsSnapshot<RulesConfig> _rulesConfig;
     private readonly IEnumerable<IEmailAction> _actions;
     private readonly ILogger<EmailProcessor> _logger;
 
     /// <summary>Initializes a new instance of <see cref="EmailProcessor"/>.</summary>
     public EmailProcessor(
         IEmailRepository repo,
-        IOptions<RulesConfig> rulesConfig,
+        IOptionsSnapshot<RulesConfig> rulesConfig,
         IEnumerable<IEmailAction> actions,
         ILogger<EmailProcessor> logger)
     {

@@ -18,6 +18,13 @@ public class GmailRepository : IGmailRepository
     private readonly ILogger<GmailRepository> _logger;
     private readonly Dictionary<string, string> _labelCache = new();
 
+    // Cursor tracking the last Gmail history ID we have processed. Gmail's history.list
+    // returns records *after* StartHistoryId, so we must list from the previously seen
+    // history ID — not from the notification's own (which already includes the new mail).
+    // Seeded from the watch() baseline and advanced as notifications are processed.
+    private readonly Lock _historyGate = new();
+    private ulong? _lastHistoryId;
+
     /// <summary>Initializes a new instance of <see cref="GmailRepository"/>.</summary>
     public GmailRepository(
         GmailService gmail,
@@ -106,30 +113,73 @@ public class GmailRepository : IGmailRepository
     public async Task RenewWatchAsync()
     {
         var request = new WatchRequest { TopicName = _topicName };
-        await ExecuteGmailAsync(
+        var response = await ExecuteGmailAsync(
             () => _gmail.Users.Watch(request, _userId).ExecuteAsync());
+
+        // Seed the history cursor from the watch baseline so the first notification after
+        // (re)starting has a valid point to list changes from. Only seed if unset, to avoid
+        // rewinding a cursor that live notifications have already advanced.
+        if (response.HistoryId is { } baseline)
+        {
+            lock (_historyGate)
+                _lastHistoryId ??= baseline;
+        }
     }
 
     /// <inheritdoc/>
     public async Task<IEnumerable<string>> GetNewMessageIdsAsync(ulong historyId)
     {
+        // List from the last history ID we processed, not the notification's own. The
+        // notification ID already reflects the new mail, so listing from it returns nothing.
+        // Fall back to the notification ID only if we have no cursor yet (cold start before
+        // the first watch renewal) — the next notification then advances normally.
+        ulong startHistoryId;
+        lock (_historyGate)
+            startHistoryId = _lastHistoryId ?? historyId;
+
+        var messageIds = new List<string>();
         var request = _gmail.Users.History.List(_userId);
-        request.StartHistoryId = historyId;
+        request.StartHistoryId = startHistoryId;
         request.HistoryTypes = UsersResource.HistoryResource.ListRequest.HistoryTypesEnum.MessageAdded;
 
         try
         {
-            var response = await ExecuteGmailAsync(() => request.ExecuteAsync());
-            return response.History?
-                .SelectMany(h => h.MessagesAdded ?? [])
-                .Select(m => m.Message.Id)
-                .Distinct()
-                ?? [];
+            string? pageToken = null;
+            do
+            {
+                request.PageToken = pageToken;
+                var response = await ExecuteGmailAsync(() => request.ExecuteAsync());
+                if (response.History is { } history)
+                {
+                    messageIds.AddRange(history
+                        .SelectMany(h => h.MessagesAdded ?? [])
+                        .Select(m => m.Message.Id));
+                }
+
+                pageToken = response.NextPageToken;
+            }
+            while (pageToken is not null);
+
+            AdvanceHistoryCursor(historyId);
+            return messageIds.Distinct();
         }
         catch (GoogleApiException ex) when (ex.HttpStatusCode == HttpStatusCode.NotFound)
         {
-            _logger.LogWarning(ex, "Gmail history ID {HistoryId} is stale; acknowledging notification", historyId);
+            // The start point is older than Gmail retains. Reset the cursor to the
+            // notification ID so we resume cleanly from the next change.
+            _logger.LogWarning(
+                ex, "Gmail history ID {HistoryId} is stale; resetting cursor", startHistoryId);
+            AdvanceHistoryCursor(historyId);
             return [];
+        }
+    }
+
+    private void AdvanceHistoryCursor(ulong historyId)
+    {
+        lock (_historyGate)
+        {
+            if (_lastHistoryId is null || historyId > _lastHistoryId)
+                _lastHistoryId = historyId;
         }
     }
 
